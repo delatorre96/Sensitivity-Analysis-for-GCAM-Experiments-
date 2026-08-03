@@ -161,3 +161,65 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
 
 
 
+xml_files <- st1_get_xml_files(config_file)
+
+results <- list()
+
+for(xml_file in xml_files){
+  
+  xml_file_path <- file.path(dir_xml, xml_file)
+  
+  doc <- read_xml(xml_file_path)
+  
+  # Buscar todos los calOutputValue
+  nodes <- xml_find_all(doc, ".//calOutputValue")
+  
+  if(length(nodes) == 0) next
+  
+  df_xml <- map_dfr(nodes, function(node){
+    
+    # Padres desde la raíz hasta el padre inmediato
+    parents <- xml_parents(node)
+    parents <- rev(parents)
+    
+    row <- list()
+    
+    # Nombre del xml
+    row$xml_file <- xml_file
+    
+    # XPath completo
+    row$xpath <- xml_path(node)
+    
+    # Valor del calOutputValue
+    row$calOutputValue <- as.numeric(xml_text(node))
+    
+    # Recorrer todos los padres
+    for(p in parents){
+      
+      tag <- xml_name(p)
+      
+      attrs <- xml_attrs(p)
+      
+      if("name" %in% names(attrs)){
+        value <- attrs["name"]
+      } else if("year" %in% names(attrs)){
+        value <- attrs["year"]
+      } else if(length(xml_text(p)) > 0 &&
+                length(xml_children(p)) == 0){
+        value <- xml_text(p)
+      } else{
+        value <- NA_character_
+      }
+      
+      row[[tag]] <- value
+    }
+    
+    as_tibble(row)
+    
+  })
+  
+  results[[xml_file]] <- df_xml
+}
+
+df_caloutput <- bind_rows(results)
+
