@@ -105,14 +105,78 @@ st2_extract_logits_anyXML<- function(xml_file){
 }
 
 
-createDF_params <- function(xml_files, regions = NULL, interested_subsectors = NULL, interested_sectors = NULL){
+
+st2_extract_calOutputData_anyXML <- function(xml_file){
+  
+  doc <- read_xml(xml_file)
+  
+  nodes <- xml_find_all(doc, ".//calOutputValue")
+  
+  if(length(nodes) == 0) next
+  
+  rows <- vector("list", length(nodes))
+  
+  for(i in seq_along(nodes)) {
+    
+    node <- nodes[[i]]
+    
+    parents <- rev(xml_parents(node))
+    
+    row <- vector("list", length(parents) + 3)
+    
+    names(row) <- c(
+      "xml_file",
+      "xpath",
+      "calOutputValue",
+      xml_name(parents)
+    )
+    
+    row$xml_file <- xml_file
+    row$xpath <- xml_path(node)
+    row$calOutputValue <- as.numeric(xml_text(node))
+    
+    for(p in parents){
+      
+      attrs <- xml_attrs(p)
+      
+      value <-
+        if("name" %in% names(attrs)){
+          attrs[["name"]]
+        } else if("year" %in% names(attrs)){
+          attrs[["year"]]
+        } else {
+          NA_character_
+        }
+      
+      row[[xml_name(p)]] <- value
+    }
+    
+    rows[[i]] <- row
+  }
+  
+  bind_rows(rows)
+  
+  
+}
+
+
+
+
+
+
+createDF_params <- function(xml_files, regions = NULL, interested_subsectors = NULL, 
+                            interested_sectors = NULL, whatExtract = c("logits", "calOutputValue")){
   ##Poner regions como una lista para cada xml_file
   # EXAMPLE OF USE:
   # xml_files <- c("en_supply_EUR.xml", "ag_an_demand_input.xml")
   # regions <- list("en_supply_EUR.xml" = c('USA', 'Argentina', 'Russia'),
   #                           "ag_an_demand_input.xml" = NULL) OR just  c('USA', 'Argentina', 'Russia') for all queries
+  #
+  whatExtract <- match.arg(whatExtract)
   
-
+  extracting_functions = list('logits' = st2_extract_logits_anyXML, 
+                              'calOutputValue' = st2_extract_calOutputData_anyXML)
+  func <- extracting_functions[[whatExtract]]
   
   logit_table_list <- list()
   
@@ -121,14 +185,14 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
     xml_file_path <- file.path(dir_xml, xml_file)
     
     
-    table_logit_i <- st2_extract_logits_anyXML(xml_file_path) 
+    table_logit_i <- func(xml_file_path) 
     
     if(!is.null(regions)){
       if (typeof(regions) == "list"){
-      regions_xml <- regions[[xml_file]]
-      table_logit_i <- table_logit_i %>% 
-      filter(region %in% regions_xml)
-      
+        regions_xml <- regions[[xml_file]]
+        table_logit_i <- table_logit_i %>% 
+          filter(region %in% regions_xml)
+        
       }else if (typeof(regions) == "character"){
         table_logit_i <- table_logit_i %>% 
           filter(region %in% regions)
@@ -158,69 +222,3 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
   return(df_params)
 }
 
-
-createDF_calOutoutVal <- function(xml_files, regions = NULL, interested_subsectors = NULL, interested_sectors = NULL){
-  ##Poner regions como una lista para cada xml_file
-
-results <- list()
-
-for(xml_file in xml_files){
-  
-  xml_file_path <- file.path(dir_xml, xml_file)
-  
-  doc <- read_xml(xml_file_path)
-  
-  # Buscar todos los calOutputValue
-  nodes <- xml_find_all(doc, ".//calOutputValue")
-  
-  if(length(nodes) == 0) next
-  
-  df_xml <- map_dfr(nodes, function(node){
-    
-    # Padres desde la raíz hasta el padre inmediato
-    parents <- xml_parents(node)
-    parents <- rev(parents)
-    
-    row <- list()
-    
-    # Nombre del xml
-    row$xml_file <- xml_file
-    
-    # XPath completo
-    row$xpath <- xml_path(node)
-    
-    # Valor del calOutputValue
-    row$calOutputValue <- as.numeric(xml_text(node))
-    
-    # Recorrer todos los padres
-    for(p in parents){
-      
-      tag <- xml_name(p)
-      
-      attrs <- xml_attrs(p)
-      
-      if("name" %in% names(attrs)){
-        value <- attrs["name"]
-      } else if("year" %in% names(attrs)){
-        value <- attrs["year"]
-      } else if(length(xml_text(p)) > 0 &&
-                length(xml_children(p)) == 0){
-        value <- xml_text(p)
-      } else{
-        value <- NA_character_
-      }
-      
-      row[[tag]] <- value
-    }
-    
-    as_tibble(row)
-    
-  })
-  
-  results[[xml_file]] <- df_xml
-}
-
-df_caloutput <- bind_rows(results)
-return(df_caloutput)
-
-}
