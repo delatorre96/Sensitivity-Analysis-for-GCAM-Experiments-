@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<queries>
+
+  <aQuery>
+
+    <!-- Regions whose data will be stored -->
+    <region name="USA" />
+    <region name="Argentina" />
+    <region name="Russia" />
+
+<supplyDemandQuery title="resource production">
+  <axis1 name="resource">resource</axis1>
+  <axis2 name="Year">output</axis2>
+  <xPath buildList="true" dataName="output" group="false" sumAll="false">*[@type='resource']//output/node()</xPath>
+  <comments/>
+</supplyDemandQuery>
+
+  </aQuery>
+</queries>
+

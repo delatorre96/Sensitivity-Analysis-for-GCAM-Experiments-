@@ -1,23 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <ModelInterfaceBatch>
-    <!-- Note multiple sets of the following are allowed to run several
+  <!-- Note multiple sets of the following are allowed to run several
          batch queries sequentially.
       -->
-    <class name="ModelInterface.ModelGUI2.DbViewer">
-
-		<!-- Example of the 1st query to be stored: NCEM -->
-        <command name="XMLDB Batch File"> 
-            <!-- The Batch queries to run -->
-            <queryFile>batch_queries/query.xml</queryFile>
-             <!-- Where to write results -->
-            <outFile>pathToSave.csv</outFile>
-            <!-- Which database to query -->
-            <xmldbLocation>../database_basexdb</xmldbLocation>
-            <!-- Additinoal query options which will be ignored when saving to CSV -->
-            <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
-            <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
-            <batchQuerySplitRunsInDifferentSheets>false</batchQuerySplitRunsInDifferentSheets>
-            <batchQueryReplaceResults>true</batchQueryReplaceResults>
-        </command>
-
-    </class>
+  <class name="ModelInterface.ModelGUI2.DbViewer">
+    <!-- Example of the 1st query to be stored: NCEM -->
+    <command name="XMLDB Batch File">
+      <queryFile>batch_queries/resource_production.xml</queryFile>
+      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/resource_production_0.csv</outFile>
+      <xmldbLocation>../database_basexdb</xmldbLocation>
+      <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
+      <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
+      <batchQuerySplitRunsInDifferentSheets>false</batchQuerySplitRunsInDifferentSheets>
+      <batchQueryReplaceResults>true</batchQueryReplaceResults>
+    </command>
+    <command name="XMLDB Batch File">
+      <queryFile>batch_queries/resource_supply_curves.xml</queryFile>
+      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/resource_supply_curves_0.csv</outFile>
+      <xmldbLocation>../database_basexdb</xmldbLocation>
+      <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
+      <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
+      <batchQuerySplitRunsInDifferentSheets>false</batchQuerySplitRunsInDifferentSheets>
+      <batchQueryReplaceResults>true</batchQueryReplaceResults>
+    </command>
+  </class>
 </ModelInterfaceBatch>

@@ -1,0 +1,24 @@
+*.csv
+*.xlsx
+*.h5
+*.db
+*.sqlite
+*.zip
+*.tar
+*.rar
+*.pkl
+*.pickle
+*.dat
+*.html
+*.RData
+*.rds
+*.RDS
+files/*.xml
+
+# Excepto estos
+!files/allQueries.xml
+!files/query.xml
+!files/xmldb_batch.xml
+
+Experiments
+data
