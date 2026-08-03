@@ -112,7 +112,6 @@ write_datasets_info <- function(con,
 }
 
 
-
 save_inputs_parquet <- function(
     df_params_copy,
     experiment_id,
@@ -144,7 +143,10 @@ save_inputs_parquet <- function(
     output_file
   )
   
+  file_size_mb <- file.info(output_file)$size / (1024^2)
+  
   data.frame(
+    experiment_id = experiment_id,
     
     run_id = run_id,
     
@@ -154,9 +156,7 @@ save_inputs_parquet <- function(
     
     filepath = output_file,
     
-    ncols = ncol(df),
-    
-    nrows = nrow(df),
+    size_mb = round(file_size_mb, 2),
     
     stringsAsFactors = FALSE
     
@@ -349,6 +349,7 @@ save_run_outputs <- function(
       output_file
     )
     
+    file_size_mb <- file.info(output_file)$size / (1024^2)
     ##------------------------------------------------------------
     ## Guardar metadatos
     ##------------------------------------------------------------
@@ -367,9 +368,7 @@ save_run_outputs <- function(
         
         filepath = output_file,
         
-        ncols = ncol(df),
-        
-        nrows = nrow(df),
+        size_mb = round(file_size_mb, 2),
         
         stringsAsFactors = FALSE
         
