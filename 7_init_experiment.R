@@ -90,18 +90,18 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     
     df_params_copy$run_id <- run_id
     
-    df_info_inputs <- save_inputs_parquet(df_params_copy,
-                        experiment_id,
-                        run_id)
-    df_info_outputs <- save_run_outputs(experiment_id,
-                                        run_id,
-                                        queries_of_interest,
-                                        interested_query_columns)
+    df_info_inputs <- save_inputs_parquet(df_params_copy = df_params_copy,
+                        experiment_id = experiment_id,
+                        run_id = run_id)
+    df_info_outputs <- save_run_outputs(experiment_id = experiment_id,
+                                        run_id = run_id,
+                                        queries_of_interest = queries_of_interest,
+                                        interested_query_columns = interested_query_columns)
     datasets = rbind(df_info_inputs, 
                      df_info_outputs)
     
-    write_datasets_info(con,
-                        datasets)
+    write_datasets_info(con = con,
+                        datasets = datasets)
     
     
     delete_iteration_csvs()
