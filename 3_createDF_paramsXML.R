@@ -159,9 +159,8 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
 }
 
 
-
-
-xml_files <- st1_get_xml_files(config_file)
+createDF_calOutoutVal <- function(xml_files, regions = NULL, interested_subsectors = NULL, interested_sectors = NULL){
+  ##Poner regions como una lista para cada xml_file
 
 results <- list()
 
@@ -222,4 +221,6 @@ for(xml_file in xml_files){
 }
 
 df_caloutput <- bind_rows(results)
+return(df_caloutput)
 
+}
