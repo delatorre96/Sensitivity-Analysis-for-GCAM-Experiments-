@@ -154,7 +154,7 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
   df_params <- bind_rows(logit_table_list) %>%
     mutate(destination_file = sub("\\.xml$", "_cal.xml", xml_file)) #%>% filter(xml_file != 'building_det_EUR.xml')
   
-  write.csv(df_params, 'df_params.csv', row.names = FALSE)
+  #write.csv(df_params, here::here("R", "df_params.csv"), row.names = FALSE) Expansion: Use existent df_params if other experiment with same xml is run instead of creating other
   return(df_params)
 }
 

@@ -1,6 +1,6 @@
 create_experiment_folders <- function(
     experiment_id,
-    root_dir = file.path(getwd(), "Experiments")
+    root_dir = here::here("Experiments")
 ) {
   
   experiment_dir <- file.path(root_dir, experiment_id)
@@ -145,8 +145,8 @@ save_run_outputs <- function(
     experiment_id,
     run_id,
     queries_of_interest,
-    gcam_output_dir = file.path(getwd(), "data"),
-    database_dir = file.path(getwd(), "Experiments"),
+    gcam_output_dir = here::here(), 
+    database_dir = here::here("Experiments"),
     interested_query_columns = NULL
 ) {
   
@@ -377,7 +377,7 @@ write_datasets_info <- function(
 
 
 
-delete_iteration_csvs <- function(data_dir = file.path(getwd(), "Data")) {
+delete_iteration_csvs <- function(data_dir = here::here()) {
   
   files <- list.files(
     data_dir,

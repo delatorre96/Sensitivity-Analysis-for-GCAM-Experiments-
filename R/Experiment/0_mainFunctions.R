@@ -116,7 +116,34 @@ create_new_run_gcam <- function(){
 }
 
 
-
-
+create_or_add_experiment_id <- function(experiment_id_to_add){
+  if (is.null(experiment_id_to_add)){
+    experiment_id <- paste0(
+      "EXP_",
+      substr(UUIDgenerate(), 1, 8))
+    message(paste0('Starting experiment: ',experiment_id))
+  }else{
+    #check if experiment_id_to_add exists in the db
+    if (exists('gcam_sensitivity.sqlite')){
+      con <- dbConnect(
+        SQLite(),
+        "gcam_sensitivity.sqlite"
+      )
+      experiments_table <- dbReadTable(con, "Experiments")
+      if (experiment_id_to_add %in% experiments_table$experiment_id){
+        experiment_id = experiment_id_to_add
+        message(paste0('Adding to: ',experiment_id))
+      } else{
+        message(paste0('Experiment id does not exist. Re-run experiment seting experiment_id_to_add as NULL or any existent experiment_id'))
+        stop()
+      }
+      
+    } else{
+      message(paste0('db does not exist. Re-run experiment seting experiment_id_to_add as NULL'))
+      stop()
+    }
+  }
+  return(experiment_id)
+}
 
 

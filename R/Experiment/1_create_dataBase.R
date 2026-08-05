@@ -1,9 +1,10 @@
-create_database <- function(db_path = "gcam_sensitivity.sqlite") {
+create_database <- function(db_path = here::here("gcam_sensitivity.sqlite")) {
 
 con <- dbConnect(
-  SQLite(),
-  "gcam_sensitivity.sqlite"
-)
+    SQLite(),
+    db_path
+  )
+  
 
 
 dbExecute(con, "

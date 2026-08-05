@@ -2,7 +2,7 @@
 init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrepeared = T, queries_of_interest = 'outputs by tech', regions_of_interest = regions_eur, 
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL, 
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
-                            interested_query_columns = NULL){
+                            interested_query_columns = NULL, experiment_id_to_add = NULL){
 
   
   source('0_mainFunctions.R')
@@ -15,10 +15,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   source('5_createNewXml.R')
   source('6_appendResults.R')
   
-  experiment_id <- paste0(
-    "EXP_",
-    substr(UUIDgenerate(), 1, 8))
-  message(paste0('Starting experiment: ',experiment_id))
+  experiment_id = create_or_add_experiment_id(experiment_id_to_add)
   
   thisScript_path <- getwd()
 
@@ -47,21 +44,22 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   create_new_config(df_params, exe_dir, config_file)
   create_new_run_gcam()
   
-  write_experiment_info(con = con,
-                        experiment_id = experiment_id,
-                        inputs_xml = xml_files,
-                        repo = gcam_path,
-                        regions = regions_of_interest,
-                        experiment_name = experiment_name, 
-                        outputs_queries = queries_of_interest,
-                        n_iterations = n_iterations,
-                        description = description, 
-                        project = project, 
-                        perturbation_strategy = perturbation_strategy,
-                        distribution = distribution,
-                        distribution_parameters = distribution_parameters)
-  
-  create_experiment_folders(experiment_id = experiment_id)
+  if (is.null(experiment_id_to_add)){
+    write_experiment_info(con = con,
+                          experiment_id = experiment_id,
+                          inputs_xml = xml_files,
+                          repo = gcam_path,
+                          regions = regions_of_interest,
+                          experiment_name = experiment_name, 
+                          outputs_queries = queries_of_interest,
+                          n_iterations = n_iterations,
+                          description = description, 
+                          project = project, 
+                          perturbation_strategy = perturbation_strategy,
+                          distribution = distribution,
+                          distribution_parameters = distribution_parameters)
+    create_experiment_folders(experiment_id = experiment_id)
+    }
   
   for (i in 1:n_iterations){
     t1 <- Sys.time()
