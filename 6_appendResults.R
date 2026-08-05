@@ -86,31 +86,6 @@ write_run_info <- function(con,
   
 }
 
-write_datasets_info <- function(con,
-                                run_id,
-                                df_params_copy){
-  ###Inputs###
-  df_params_copy <- df_params_copy %>%
-    select(-any_of(c("id", "level", "destination_file")))
-  
-  
-  
-  
-  
-  info <- data.frame(
-    run_id = run_id,
-    dataset_type = dataset_type,
-    dataset_name = dataset_name,
-    filepath = filepath,
-    ncols = ncols,
-    nrows = nrows,
-    stringsAsFactors = FALSE
-  )
-  
-  dbAppendTable(con, "Datasets", info)
-  
-}
-
 
 save_inputs_parquet <- function(
     df_params_copy,
@@ -396,17 +371,7 @@ write_datasets_info <- function(
     datasets
 ) {
   
-  DBI::dbWriteTable(
-    
-    conn = con,
-    
-    name = "Datasets",
-    
-    value = datasets,
-    
-    append = TRUE
-    
-  )
+  dbAppendTable(con, "Datasets", datasets)
   
 }
 

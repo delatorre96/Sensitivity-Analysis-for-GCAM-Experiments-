@@ -112,11 +112,13 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     
     t2 <- Sys.time()
     
-    write_run_info(experiment_id = experiment_id,
+    write_run_info(con = con,
+                   run_id = run_id,
+                   experiment_id = experiment_id,
                    execution_time =  as.numeric(t2 - t1, units = "mins"),
                    execution_errors = executionErrors,
-                   delta = delta,
-                   xml_files = xml_files)
+                   delta = delta
+                   )
     
     
     

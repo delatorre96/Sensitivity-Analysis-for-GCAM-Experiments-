@@ -45,8 +45,7 @@ CREATE TABLE IF NOT EXISTS Datasets (
     dataset_type TEXT NOT NULL,
     dataset_name TEXT,
     filepath TEXT,
-    ncols INTEGER,
-    nrows INTEGER,
+    size_mb REAL,
 
     FOREIGN KEY (experiment_id)
         REFERENCES Experiments(experiment_id),
