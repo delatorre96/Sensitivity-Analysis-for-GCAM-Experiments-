@@ -1,19 +1,21 @@
 
 init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrepeared = T, queries_of_interest = 'outputs by tech', regions_of_interest = regions_eur, 
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL, 
+                            uncertainty_introduction_function = 'introduce_aditive_uncertainty',
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
                             interested_query_columns = NULL, experiment_id_to_add = NULL){
 
   
-  source('0_mainFunctions.R')
+  source(here::here('R','Experiment','0_mainFunctions.R'))
   check_packages()
   
-  source('1_create_dataBase.R')
-  source('2_PrepareGCAM.R')
-  source('3_createDF_paramsXML.R')
-  source('4_introduceUncertainty.R')
-  source('5_createNewXml.R')
-  source('6_appendResults.R')
+  source(here::here('R','Experiment','1_create_dataBase.R'))
+  source(here::here('R','Experiment','2_PrepareGCAM.R'))
+  source(here::here('R','Experiment','3_createDF_paramsXML.R'))
+  source(here::here('R','Experiment','4_introduceUncertainty.R'))
+  source(here::here('R','Experiment','5_createNewXml.R'))
+  source(here::here('R','Experiment','6_appendResults.R'))
+  source(here::here('R','Storage','manageExperiments.R'))
   
   experiment_id = create_or_add_experiment_id(experiment_id_to_add)
   
@@ -70,9 +72,11 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     
     min_val = distribution_parameters$minVal
     max_val = distribution_parameters$maxVal
-    uncertainVars <- introduce_aditive_uncertainty(min_val = min_val, 
-                                                    max_val = max_val, 
-                                                    df_params = df_params)
+    uncertainVars <- get(uncertainty_introduction_function)(n_iterations = n_iterations, 
+                                                            i = i, 
+                                                            min_val = min_val, 
+                                                            max_val = max_val, 
+                                                            df_params = df_params)
     delta <- uncertainVars$delta
     df_params_copy <- uncertainVars$df_params_copy
     
@@ -118,7 +122,10 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                    delta = delta
                    )
     
-    
+    if(!is.null(experiment_id_to_add)){
+      update_number_iterations(con = con, 
+                               experiment_id = experiment_id)
+    }
     
   }
   

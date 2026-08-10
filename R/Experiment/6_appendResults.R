@@ -145,7 +145,7 @@ save_run_outputs <- function(
     experiment_id,
     run_id,
     queries_of_interest,
-    gcam_output_dir = here::here(), 
+    gcam_output_dir = here::here("data"), 
     database_dir = here::here("Experiments"),
     interested_query_columns = NULL
 ) {

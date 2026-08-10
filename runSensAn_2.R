@@ -48,16 +48,16 @@ alreadyPrepeared = T
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 300
+n_iterations = 200
 project = 'Hindcasting'
-experiment_name = 'delta exploration'
-description = 'Test different delta values using additive perturbation to explore how MAE/RMSE changes across its domain.'
-perturbation_strategy = 'latin hyper cube'
+experiment_name = 'monte carlo'
+description = 'Test different random values per logit parameter using additive perturbation'
+perturbation_strategy = 'aditive heterogeneous'
 distribution = 'uniform'
-distribution_parameters = list('minVal' = 2, 'maxVal' = 50)
+distribution_parameters = list('minVal' = -5, 'maxVal' = 5)
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 experiment_id_to_add = NULL
-uncertainty_introduction_function = 'introduce_aditive_Latin_HyperCube_uncertainty'
+uncertainty_introduction_function = 'introduce_aditive_heterogeneous_uncertainty'
 
 
 init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_interest, 
@@ -65,8 +65,5 @@ init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_in
                 uncertainty_introduction_function,
                 perturbation_strategy, distribution, distribution_parameters,
                 interested_query_columns, experiment_id_to_add )
-
-
-
 
 

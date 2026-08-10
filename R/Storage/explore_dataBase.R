@@ -12,7 +12,8 @@ read_experiment_inputs <- function(con, experiment_id) {
     sprintf(
       "SELECT run_id
        FROM Runs
-       WHERE experiment_id = '%s'",
+       WHERE  execution_errors = 0 
+      AND  experiment_id = '%s'",
       experiment_id
     )
   )
@@ -46,7 +47,8 @@ read_experiment_output <- function(con,
     sprintf(
       "SELECT run_id
        FROM Runs
-       WHERE experiment_id='%s'",
+       WHERE execution_errors = 0 
+      AND experiment_id='%s'",
       experiment_id
     )
   )
