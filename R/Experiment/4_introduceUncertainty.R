@@ -1,39 +1,55 @@
 
-introduce_aditive_uncertainty <- function(n_iterations = NULL, i = NULL, min_val, max_val, df_params){
+introduce_aditive_uncertainty <- function(n_iterations = NULL, i = NULL, min_val, max_val, df_params, paramCol = 'logit'){
   
   df_params_copy <- df_params
   df_params_copy$year  <- 2021
   
-  
+  if (all(df_params[[paramCol]] <= 0)){
   repeat {
     
     delta <- round(runif(1,min_val,max_val),2)
     
-    new_logit <- df_params$logit * (1 + delta)
+    new_logit <- df_params[[paramCol]] * (1 + delta)
     
     if (all(new_logit <= 0)) break
+    }
+  } else if (all(df_params[[paramCol]] >= 0)){
+    repeat {
+      
+      delta <- round(runif(1,min_val,max_val),2)
+      
+      new_logit <- df_params[[paramCol]] * (1 + delta)
+      
+      if (all(new_logit >= 0)) break
+    }
+  }else{
+    delta <- round(runif(1,min_val,max_val),2)
     
+    new_logit <- df_params[[paramCol]] * (1 + delta)
   }
   
   
-  df_params_copy$logit <- round(new_logit, 2)
+  df_params_copy[[paramCol]] <- round(new_logit, 2)
   return(list('df_params_copy' = df_params_copy,
               'delta' = delta))
 
 }
 
 
-introduce_aditive_Latin_HyperCube_uncertainty <- function(n_iterations, i, min_val, max_val, df_params){
+introduce_aditive_Latin_HyperCube_uncertainty <- function(n_iterations, i, min_val, max_val, df_params, paramCol = 'logit'){
   
   df_params_copy <- df_params
   df_params_copy$year  <- 2021
   
-  total_delta <- round(seq(min_val, max_val,  length.out = n_iterations),2)
+  total_delta <- round(
+    seq(max_val, min_val, length.out = n_iterations),
+    2
+  )
   
     
   delta <- total_delta[i]
   
-  new_logits <- df_params$logit * (1 + delta)
+  new_logits <- df_params[[paramCol]] * (1 + delta)
   
   invalid <- new_logits > 0
   
@@ -43,11 +59,9 @@ introduce_aditive_Latin_HyperCube_uncertainty <- function(n_iterations, i, min_v
     invalid <- new_logits > 0
   }
   
-  df_params_copy$logit <- round(new_logits, 2)
+  df_params_copy[[paramCol]] <- round(new_logits, 2)
   
   
-  
-  df_params_copy$logit <- round(new_logits, 2)
   return(list('df_params_copy' = df_params_copy,
               'delta' = delta))
   
@@ -57,6 +71,7 @@ introduce_aditive_Latin_HyperCube_uncertainty <- function(n_iterations, i, min_v
 introduce_aditive_heterogeneous_uncertainty <- function(
     n_iterations = NULL,
     i = NULL,
+    paramCol = 'logit',
     min_val,
     max_val,
     df_params
@@ -67,12 +82,12 @@ introduce_aditive_heterogeneous_uncertainty <- function(
   
   # Generar un delta independiente para cada logit
   deltas <- round(
-    runif(length(df_params$logit), min_val, max_val),
+    runif(length(df_params[[paramCol]]), min_val, max_val),
     3
   )
   
   # Calcular nuevos logits
-  new_logits <- df_params$logit * (1 + deltas)
+  new_logits <- df_params[[paramCol]] * (1 + deltas)
   
   # Si algún logit resulta positivo, regenerar solo esos deltas
   invalid <- new_logits > 0
@@ -83,7 +98,7 @@ introduce_aditive_heterogeneous_uncertainty <- function(
     invalid <- new_logits > 0
   }
   
-  df_params_copy$logit <- round(new_logits, 2)
+  df_params_copy[[paramCol]] <- round(new_logits, 2)
   
   return(
     list(
@@ -95,7 +110,7 @@ introduce_aditive_heterogeneous_uncertainty <- function(
 
 
 
-introduce_hierarchical_uncertainty <- function(relative_uncertainty =  round(runif(1,0.1,1),1), df_params){
+introduce_hierarchical_uncertainty <- function(relative_uncertainty =  round(runif(1,0.1,1),1), paramCol = 'logit', df_params){
 
   message('Inducing uncertainty in the parameters...')
   
@@ -115,7 +130,7 @@ introduce_hierarchical_uncertainty <- function(relative_uncertainty =  round(run
     )
   }
 
-  df_params_copy$logit <- round(df_params_copy$logit * factor, 2)
+  df_params_copy[[paramCol]] <- round(df_params_copy[[paramCol]] * factor, 2)
   
   return(df_params_copy)
   

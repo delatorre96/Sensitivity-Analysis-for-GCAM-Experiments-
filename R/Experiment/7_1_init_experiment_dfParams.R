@@ -1,7 +1,7 @@
 
 init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrepeared = T, queries_of_interest = 'outputs by tech', regions_of_interest = regions_eur, 
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL, 
-                            uncertainty_introduction_function = 'introduce_aditive_uncertainty',
+                            uncertainty_introduction_function = 'introduce_aditive_uncertainty', df_params_path, paramCol,
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
                             interested_query_columns = NULL, experiment_id_to_add = NULL){
 
@@ -41,7 +41,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   
   
   
-  df_params <- createDF_params(xml_files, regions_eur)
+  df_params <- read.csv(df_params_path)
   
   
   if (is.null(experiment_id_to_add)){
@@ -75,16 +75,17 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                                                             i = i, 
                                                             min_val = min_val, 
                                                             max_val = max_val, 
-                                                            df_params = df_params)
+                                                            df_params = df_params,
+                                                            paramCol = paramCol)
+  
     delta <- uncertainVars$delta
     df_params_copy <- uncertainVars$df_params_copy
     
     
-    createNewXml(df_params_copy)
-    
+
+    createNewXml_other_params(df_params_copy, paramCol)
     create_new_config(df_params, exe_dir, config_file)
     create_new_run_gcam()
-    
     
     run_gcam(run_gcam_file_cal)
     executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))

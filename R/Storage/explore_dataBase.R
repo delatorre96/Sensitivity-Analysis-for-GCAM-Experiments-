@@ -4,71 +4,125 @@ library(dplyr)
 library(arrow)
 library(purrr)
 
-read_experiment_inputs <- function(con, experiment_id) {
+
+read_experiment_inputs <- function(con,
+                                   experiment_id = NULL,
+                                   execution_errors = NULL) {
   
-  # Runs del experimento
-  runs <- dbGetQuery(
-    con,
-    sprintf(
-      "SELECT run_id
-       FROM Runs
-       WHERE  execution_errors = 0 
-      AND  experiment_id = '%s'",
-      experiment_id
-    )
-  )
+  sql <- "
+    SELECT d.*
+    FROM Datasets d
+    INNER JOIN Runs r
+      ON d.run_id = r.run_id
+    WHERE d.dataset_type = 'input'
+  "
   
-  # Datasets de tipo input
-  datasets <- dbGetQuery(
-    con,
-    sprintf(
-      "SELECT *
-       FROM Datasets
-       WHERE dataset_type = 'input'
-       AND run_id IN (%s)",
-      paste(sprintf("'%s'", runs$run_id), collapse = ",")
+  params <- list()
+  
+  # Por defecto: excluir runs con errores
+  if (is.null(execution_errors)) {
+    sql <- paste0(sql, " AND r.execution_errors = 0")
+  }
+  
+  # Si se especifican experimentos, limitar a esos experimentos
+  # Acepta tanto un único ID como un vector de IDs
+  if (!is.null(experiment_id)) {
+    
+    # Aseguramos que sea un vector
+    experiment_id <- as.vector(experiment_id)
+    
+    # Creamos tantos ? como experimentos haya
+    placeholders <- paste(rep("?", length(experiment_id)), collapse = ", ")
+    
+    sql <- paste0(
+      sql,
+      " AND r.experiment_id IN (", placeholders, ")"
     )
-  )
+    
+    params <- as.list(experiment_id)
+  }
+  
+  # Ejecutar query
+  if (length(params) == 0) {
+    datasets <- DBI::dbGetQuery(con, sql)
+  } else {
+    datasets <- DBI::dbGetQuery(
+      con,
+      sql,
+      params = params
+    )
+  }
+  
+  if (nrow(datasets) == 0) {
+    return(tibble::tibble())
+  }
   
   # Leer todos los Parquet
   purrr::map_dfr(
     datasets$filepath,
     arrow::read_parquet
   )
-  
 }
 
+
+
 read_experiment_output <- function(con,
-                                   experiment_id,
-                                   query_name) {
+                                   query_name,
+                                   experiment_id = NULL,
+                                   execution_errors = NULL) {
   
-  runs <- dbGetQuery(
-    con,
-    sprintf(
-      "SELECT run_id
-       FROM Runs
-       WHERE execution_errors = 0 
-      AND experiment_id='%s'",
-      experiment_id
+  sql <- "
+    SELECT d.*
+    FROM Datasets d
+    INNER JOIN Runs r
+      ON d.run_id = r.run_id
+    WHERE d.dataset_type = 'output'
+      AND d.dataset_name = ?
+  "
+  
+  params <- list(query_name)
+  
+  # Por defecto: excluir runs con errores
+  if (is.null(execution_errors)) {
+    sql <- paste0(sql, " AND r.execution_errors = 0")
+  }
+  
+  # Si se especifican experimentos, limitar a esos experimentos
+  # Acepta tanto un único ID como un vector de IDs
+  if (!is.null(experiment_id)) {
+    
+    # Aseguramos que sea un vector
+    experiment_id <- as.vector(experiment_id)
+    
+    # Creamos tantos ? como experimentos haya
+    placeholders <- paste(
+      rep("?", length(experiment_id)),
+      collapse = ", "
     )
+    
+    sql <- paste0(
+      sql,
+      " AND r.experiment_id IN (", placeholders, ")"
+    )
+    
+    params <- c(
+      params,
+      as.list(experiment_id)
+    )
+  }
+  
+  datasets <- DBI::dbGetQuery(
+    con,
+    sql,
+    params = params
   )
   
-  datasets <- dbGetQuery(
-    con,
-    sprintf(
-      "SELECT *
-       FROM Datasets
-       WHERE dataset_type='output'
-       AND dataset_name='%s'
-       AND run_id IN (%s)",
-      query_name,
-      paste(sprintf("'%s'", runs$run_id), collapse = ",")
-    )
-  )
+  if (nrow(datasets) == 0) {
+    return(tibble::tibble())
+  }
   
   purrr::map_dfr(
     datasets$filepath,
     arrow::read_parquet
   )
-  
 }

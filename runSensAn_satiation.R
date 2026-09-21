@@ -1,7 +1,6 @@
-source("R/Experiment/7_init_experiment.R")
+source("R/Experiment/7_1_init_experiment_dfParams.R")
 
-xml_files <- c( "en_supply_EUR.xml","en_transformation_EUR.xml", "elec_segments_water_EUR.xml",
-                'ag_an_demand_input.xml')
+xml_files <- c( "building_det_EUR.xml")
 regions_eur <- c(
   "Austria",
   "Belgium",
@@ -48,23 +47,27 @@ alreadyPrepeared = T
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 200
+n_iterations = 300
 project = 'Hindcasting'
-experiment_name = 'monte carlo'
-description = 'Test different random values per logit parameter using additive perturbation'
-perturbation_strategy = 'aditive heterogeneous'
+experiment_name = 'satiation level exploration'
+description = 'Test how sensitive is satiation level for outputs.'
+perturbation_strategy = 'aditive'
 distribution = 'uniform'
-distribution_parameters = list('minVal' = -5, 'maxVal' = 5)
+distribution_parameters = list('minVal' = 2, 'maxVal' = 20)
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
+uncertainty_introduction_function = 'introduce_aditive_uncertainty'
+df_params_path = "C:/GCAM/Nacho/Hindcasting/4_SensitivityAnalysis/df_params_satiation_level.csv"
+paramCol = "satiation_level"
 experiment_id_to_add = NULL
-uncertainty_introduction_function = 'introduce_aditive_heterogeneous_uncertainty'
-experiment_id_to_add = 'EXP_2e96286f'
-
 
 init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_interest, 
                 xml_files, n_iterations, project , experiment_name, description , 
-                uncertainty_introduction_function,
+                uncertainty_introduction_function, df_params_path, paramCol,
                 perturbation_strategy, distribution, distribution_parameters,
                 interested_query_columns, experiment_id_to_add )
+
+
+
+
 
 

@@ -884,3 +884,905 @@ clean_empty_experiments <- function(
   )
 }
 
+
+
+
+
+
+
+delete_experiment <- function(
+    con,
+    experiment_id,
+    dry_run = TRUE,
+    delete_physical_files = FALSE
+) {
+  
+  # ==========================================================
+  # 1. Check that experiment exists
+  # ==========================================================
+  
+  experiment <- DBI::dbGetQuery(
+    con,
+    "
+    SELECT *
+    FROM Experiments
+    WHERE experiment_id = ?
+    ",
+    params = list(experiment_id)
+  )
+  
+  if (nrow(experiment) == 0) {
+    stop(
+      "Experiment '", experiment_id,
+      "' does not exist in the database."
+    )
+  }
+  
+  
+  # ==========================================================
+  # 2. Get associated runs
+  # ==========================================================
+  
+  runs <- DBI::dbGetQuery(
+    con,
+    "
+    SELECT *
+    FROM Runs
+    WHERE experiment_id = ?
+    ",
+    params = list(experiment_id)
+  )
+  
+  
+  # ==========================================================
+  # 3. Get associated datasets and filepaths
+  # ==========================================================
+  
+  datasets <- DBI::dbGetQuery(
+    con,
+    "
+    SELECT *
+    FROM Datasets
+    WHERE experiment_id = ?
+    ",
+    params = list(experiment_id)
+  )
+  
+  
+  parquet_paths <- character(0)
+  
+  if (
+    delete_physical_files &&
+    nrow(datasets) > 0 &&
+    "filepath" %in% names(datasets)
+  ) {
+    
+    parquet_paths <- unique(
+      datasets$filepath[
+        !is.na(datasets$filepath) &
+          nzchar(datasets$filepath)
+      ]
+    )
+  }
+  
+  
+  # ==========================================================
+  # 4. Show what will be deleted
+  # ==========================================================
+  
+  message("Experiment: ", experiment_id)
+  message("Runs:       ", nrow(runs))
+  message("Datasets:   ", nrow(datasets))
+  
+  if (delete_physical_files) {
+    message(
+      "Parquet files to delete: ",
+      length(parquet_paths)
+    )
+  }
+  
+  
+  # ==========================================================
+  # 5. DRY RUN
+  # ==========================================================
+  
+  if (dry_run) {
+    
+    message("----------------------------")
+    message("DRY RUN: no changes made.")
+    
+    return(
+      invisible(
+        list(
+          experiment_id = experiment_id,
+          experiment = experiment,
+          runs = runs,
+          datasets = datasets,
+          parquet_paths = parquet_paths,
+          dry_run = TRUE
+        )
+      )
+    )
+  }
+  
+  
+  # ==========================================================
+  # 6. Delete from database
+  # ==========================================================
+  
+  DBI::dbBegin(con)
+  
+  tryCatch({
+    
+    # Delete datasets
+    DBI::dbExecute(
+      con,
+      "
+      DELETE FROM Datasets
+      WHERE experiment_id = ?
+      ",
+      params = list(experiment_id)
+    )
+    
+    
+    # Delete runs
+    DBI::dbExecute(
+      con,
+      "
+      DELETE FROM Runs
+      WHERE experiment_id = ?
+      ",
+      params = list(experiment_id)
+    )
+    
+    
+    # Delete experiment
+    DBI::dbExecute(
+      con,
+      "
+      DELETE FROM Experiments
+      WHERE experiment_id = ?
+      ",
+      params = list(experiment_id)
+    )
+    
+    
+    DBI::dbCommit(con)
+    
+  }, error = function(e) {
+    
+    DBI::dbRollback(con)
+    
+    stop(
+      "Could not delete experiment '",
+      experiment_id,
+      "'. Database changes were rolled back.\n",
+      conditionMessage(e)
+    )
+  })
+  
+  
+  # ==========================================================
+  # 7. Delete physical parquet files
+  # ==========================================================
+  
+  deleted_files <- character(0)
+  missing_files <- character(0)
+  
+  if (
+    delete_physical_files &&
+    length(parquet_paths) > 0
+  ) {
+    
+    for (filepath in parquet_paths) {
+      
+      if (file.exists(filepath)) {
+        
+        if (file.remove(filepath)) {
+          
+          deleted_files <- c(
+            deleted_files,
+            filepath
+          )
+          
+        }
+        
+      } else {
+        
+        missing_files <- c(
+          missing_files,
+          filepath
+        )
+      }
+    }
+  }
+  
+  
+  # ==========================================================
+  # 8. Final message
+  # ==========================================================
+  
+  message(
+    "Experiment '",
+    experiment_id,
+    "' deleted successfully."
+  )
+  
+  message(
+    "Runs deleted: ",
+    nrow(runs)
+  )
+  
+  message(
+    "Datasets deleted: ",
+    nrow(datasets)
+  )
+  
+  if (delete_physical_files) {
+    
+    message(
+      "Parquet files deleted: ",
+      length(deleted_files)
+    )
+    
+    message(
+      "Parquet files not found: ",
+      length(missing_files)
+    )
+  }
+  
+  
+  invisible(
+    list(
+      success = TRUE,
+      experiment_id = experiment_id,
+      n_runs_deleted = nrow(runs),
+      n_datasets_deleted = nrow(datasets),
+      deleted_files = deleted_files,
+      missing_files = missing_files
+    )
+  )
+}
+
+
+
+# ============================================================
+# CHECK ONE EXPERIMENT DIRECTORY
+# ============================================================
+
+check_experiment_directory <- function(
+    experiment_path,
+    experiment_id
+) {
+  
+  inputs_path <- file.path(
+    experiment_path,
+    "inputs"
+  )
+  
+  outputs_path <- file.path(
+    experiment_path,
+    "outputs"
+  )
+  
+  
+  # ----------------------------------------------------------
+  # Inputs
+  # ----------------------------------------------------------
+  
+  if (dir.exists(inputs_path)) {
+    
+    input_files <- list.files(
+      inputs_path,
+      pattern = "\\.parquet$",
+      full.names = TRUE,
+      recursive = FALSE,
+      ignore.case = TRUE
+    )
+    
+  } else {
+    
+    input_files <- character(0)
+  }
+  
+  
+  # ----------------------------------------------------------
+  # Outputs
+  # ----------------------------------------------------------
+  
+  if (dir.exists(outputs_path)) {
+    
+    output_files <- list.files(
+      outputs_path,
+      pattern = "\\.parquet$",
+      full.names = TRUE,
+      recursive = FALSE,
+      ignore.case = TRUE
+    )
+    
+  } else {
+    
+    output_files <- character(0)
+  }
+  
+  
+  n_inputs <- length(input_files)
+  n_outputs <- length(output_files)
+  
+  
+  inputs_empty <- (
+    !dir.exists(inputs_path) ||
+      n_inputs == 0
+  )
+  
+  outputs_empty <- (
+    !dir.exists(outputs_path) ||
+      n_outputs == 0
+  )
+  
+  
+  # ----------------------------------------------------------
+  # Reason
+  # ----------------------------------------------------------
+  
+  if (inputs_empty && outputs_empty) {
+    
+    reason <- "inputs_and_outputs_empty"
+    
+  } else if (inputs_empty) {
+    
+    reason <- "inputs_empty"
+    
+  } else if (outputs_empty) {
+    
+    reason <- "outputs_empty"
+    
+  } else {
+    
+    reason <- "valid"
+  }
+  
+  
+  data.frame(
+    experiment_id = experiment_id,
+    experiment_path = normalizePath(
+      experiment_path,
+      winslash = "/",
+      mustWork = FALSE
+    ),
+    inputs_exists = dir.exists(inputs_path),
+    outputs_exists = dir.exists(outputs_path),
+    n_input_parquets = n_inputs,
+    n_output_parquets = n_outputs,
+    inputs_empty = inputs_empty,
+    outputs_empty = outputs_empty,
+    reason = reason,
+    stringsAsFactors = FALSE
+  )
+}
+
+
+
+# ============================================================
+# CHECK PHYSICAL EXPERIMENT
+# ============================================================
+
+check_physical_experiment <- function(experiment_path) {
+  
+  inputs_path <- file.path(
+    experiment_path,
+    "inputs"
+  )
+  
+  outputs_path <- file.path(
+    experiment_path,
+    "outputs"
+  )
+  
+  
+  # ----------------------------------------------------------
+  # Find parquet files recursively
+  # ----------------------------------------------------------
+  
+  input_parquets <- character(0)
+  output_parquets <- character(0)
+  
+  
+  if (dir.exists(inputs_path)) {
+    
+    input_parquets <- list.files(
+      inputs_path,
+      pattern = "\\.parquet$",
+      recursive = TRUE,
+      full.names = TRUE,
+      ignore.case = TRUE
+    )
+  }
+  
+  
+  if (dir.exists(outputs_path)) {
+    
+    output_parquets <- list.files(
+      outputs_path,
+      pattern = "\\.parquet$",
+      recursive = TRUE,
+      full.names = TRUE,
+      ignore.case = TRUE
+    )
+  }
+  
+  
+  # ----------------------------------------------------------
+  # Return information
+  # ----------------------------------------------------------
+  
+  n_inputs <- length(input_parquets)
+  n_outputs <- length(output_parquets)
+  n_total <- n_inputs + n_outputs
+  
+  
+  list(
+    exists = TRUE,
+    inputs_exists = dir.exists(inputs_path),
+    outputs_exists = dir.exists(outputs_path),
+    input_parquets = input_parquets,
+    output_parquets = output_parquets,
+    n_input_parquets = n_inputs,
+    n_output_parquets = n_outputs,
+    n_parquets = n_total,
+    has_parquet = n_total > 0
+  )
+}
+
+
+# ============================================================
+# CLEAN ORPHAN EXPERIMENTS
+# ============================================================
+
+clean_orphan_experiments <- function(
+    con,
+    experiments_root,
+    dry_run = TRUE,
+    delete_physical_files = TRUE
+) {
+  
+  # ==========================================================
+  # 1. Validate root directory
+  # ==========================================================
+  
+  if (!dir.exists(experiments_root)) {
+    
+    stop(
+      "Experiments directory does not exist: ",
+      experiments_root
+    )
+  }
+  
+  
+  experiments_root <- normalizePath(
+    experiments_root,
+    winslash = "/",
+    mustWork = TRUE
+  )
+  
+  
+  # ==========================================================
+  # 2. Get experiments from SQLite
+  # ==========================================================
+  
+  db_experiments <- DBI::dbGetQuery(
+    con,
+    "
+    SELECT experiment_id
+    FROM Experiments
+    "
+  )
+  
+  
+  db_experiment_ids <- unique(
+    as.character(db_experiments$experiment_id)
+  )
+  
+  
+  # ==========================================================
+  # 3. Get physical experiment directories
+  # ==========================================================
+  
+  physical_experiment_dirs <- list.dirs(
+    experiments_root,
+    full.names = TRUE,
+    recursive = FALSE
+  )
+  
+  
+  # Keep only directories beginning with EXP_
+  
+  physical_experiment_dirs <- physical_experiment_dirs[
+    grepl(
+      "^EXP_[^/\\\\]+$",
+      basename(physical_experiment_dirs)
+    )
+  ]
+  
+  
+  physical_experiment_ids <- basename(
+    physical_experiment_dirs
+  )
+  
+  
+  # ==========================================================
+  # 4. Check every physical experiment
+  # ==========================================================
+  
+  physical_checks <- vector(
+    "list",
+    length(physical_experiment_dirs)
+  )
+  
+  
+  if (length(physical_experiment_dirs) > 0) {
+    
+    for (i in seq_along(physical_experiment_dirs)) {
+      
+      experiment_id <- physical_experiment_ids[i]
+      experiment_path <- physical_experiment_dirs[i]
+      
+      check <- check_physical_experiment(
+        experiment_path
+      )
+      
+      
+      physical_checks[[i]] <- data.frame(
+        experiment_id = experiment_id,
+        experiment_path = experiment_path,
+        in_database = experiment_id %in% db_experiment_ids,
+        inputs_exists = check$inputs_exists,
+        outputs_exists = check$outputs_exists,
+        n_input_parquets = check$n_input_parquets,
+        n_output_parquets = check$n_output_parquets,
+        n_parquets = check$n_parquets,
+        has_parquet = check$has_parquet,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  
+  
+  physical_results <- if (
+    length(physical_checks) > 0
+  ) {
+    dplyr::bind_rows(physical_checks)
+  } else {
+    data.frame(
+      experiment_id = character(0),
+      experiment_path = character(0),
+      in_database = logical(0),
+      inputs_exists = logical(0),
+      outputs_exists = logical(0),
+      n_input_parquets = integer(0),
+      n_output_parquets = integer(0),
+      n_parquets = integer(0),
+      has_parquet = logical(0),
+      stringsAsFactors = FALSE
+    )
+  }
+  
+  
+  # ==========================================================
+  # 5. Physical orphan experiments
+  # ==========================================================
+  #
+  # A physical experiment is orphan if:
+  #
+  #   - its folder exists
+  #   - it contains NO parquet anywhere under
+  #     inputs or outputs
+  #
+  # OR
+  #
+  #   - it is not registered in the database
+  #
+  # ==========================================================
+  
+  physical_orphans <- physical_results[
+    !physical_results$in_database |
+      !physical_results$has_parquet,
+    ,
+    drop = FALSE
+  ]
+  
+  
+  # ==========================================================
+  # 6. Experiments registered in DB but with no physical folder
+  # ==========================================================
+  
+  db_only_experiments <- setdiff(
+    db_experiment_ids,
+    physical_experiment_ids
+  )
+  
+  
+  # ==========================================================
+  # 7. Classify physical orphan reason
+  # ==========================================================
+  
+  if (nrow(physical_orphans) > 0) {
+    
+    physical_orphans$reason <- NA_character_
+    
+    
+    for (i in seq_len(nrow(physical_orphans))) {
+      
+      in_db <- physical_orphans$in_database[i]
+      has_parquet <- physical_orphans$has_parquet[i]
+      
+      
+      if (!in_db && !has_parquet) {
+        
+        physical_orphans$reason[i] <-
+          "not_in_database_and_no_parquet"
+        
+      } else if (!in_db) {
+        
+        physical_orphans$reason[i] <-
+          "physical_experiment_not_in_database"
+        
+      } else if (!has_parquet) {
+        
+        physical_orphans$reason[i] <-
+          "database_experiment_without_parquet"
+      }
+    }
+  }
+  
+  
+  # ==========================================================
+  # 8. DRY RUN
+  # ==========================================================
+  
+  if (dry_run) {
+    
+    message("")
+    message("========================================")
+    message("DRY RUN")
+    message("========================================")
+    
+    
+    message(
+      "Experiments in database: ",
+      length(db_experiment_ids)
+    )
+    
+    message(
+      "Physical experiment folders: ",
+      length(physical_experiment_ids)
+    )
+    
+    message(
+      "Physical orphan experiments: ",
+      nrow(physical_orphans)
+    )
+    
+    message(
+      "Database experiments without folder: ",
+      length(db_only_experiments)
+    )
+    
+    
+    # --------------------------------------------------------
+    # Show orphan experiments
+    # --------------------------------------------------------
+    
+    if (nrow(physical_orphans) > 0) {
+      
+      message("")
+      message("Experiments that would be deleted:")
+      message("")
+      
+      for (i in seq_len(nrow(physical_orphans))) {
+        
+        message(
+          " - ",
+          physical_orphans$experiment_id[i],
+          " | ",
+          physical_orphans$reason[i],
+          " | ",
+          physical_orphans$n_parquets[i],
+          " parquet(s)"
+        )
+      }
+    }
+    
+    
+    # --------------------------------------------------------
+    # Return
+    # --------------------------------------------------------
+    
+    return(
+      invisible(
+        list(
+          physical_results = physical_results,
+          orphan_experiments = physical_orphans,
+          database_without_folder = db_only_experiments,
+          deleted = character(0),
+          dry_run = TRUE
+        )
+      )
+    )
+  }
+  
+  
+  # ==========================================================
+  # 9. DELETE
+  # ==========================================================
+  
+  experiments_to_delete <- physical_orphans$experiment_id
+  
+  
+  if (length(experiments_to_delete) == 0) {
+    
+    message(
+      "No orphan experiments found."
+    )
+    
+    return(
+      invisible(
+        list(
+          physical_results = physical_results,
+          orphan_experiments = physical_orphans,
+          database_without_folder = db_only_experiments,
+          deleted = character(0),
+          dry_run = FALSE,
+          success = TRUE
+        )
+      )
+    )
+  }
+  
+  
+  deleted <- character(0)
+  failed <- character(0)
+  
+  
+  for (experiment_id in experiments_to_delete) {
+    
+    experiment_path <- physical_orphans$experiment_path[
+      physical_orphans$experiment_id == experiment_id
+    ]
+    
+    
+    # --------------------------------------------------------
+    # Delete from database if present
+    # --------------------------------------------------------
+    
+    if (experiment_id %in% db_experiment_ids) {
+      
+      DBI::dbBegin(con)
+      
+      tryCatch({
+        
+        DBI::dbExecute(
+          con,
+          "
+          DELETE FROM Datasets
+          WHERE experiment_id = ?
+          ",
+          params = list(experiment_id)
+        )
+        
+        
+        DBI::dbExecute(
+          con,
+          "
+          DELETE FROM Runs
+          WHERE experiment_id = ?
+          ",
+          params = list(experiment_id)
+        )
+        
+        
+        DBI::dbExecute(
+          con,
+          "
+          DELETE FROM Experiments
+          WHERE experiment_id = ?
+          ",
+          params = list(experiment_id)
+        )
+        
+        
+        DBI::dbCommit(con)
+        
+      }, error = function(e) {
+        
+        DBI::dbRollback(con)
+        
+        stop(
+          "Could not delete experiment '",
+          experiment_id,
+          "' from database.\n",
+          conditionMessage(e)
+        )
+      })
+    }
+    
+    
+    # --------------------------------------------------------
+    # Delete physical directory
+    # --------------------------------------------------------
+    
+    if (
+      delete_physical_files &&
+      dir.exists(experiment_path)
+    ) {
+      
+      success <- unlink(
+        experiment_path,
+        recursive = TRUE,
+        force = TRUE
+      ) == 0
+      
+      
+      if (success) {
+        
+        deleted <- c(
+          deleted,
+          experiment_id
+        )
+        
+      } else {
+        
+        failed <- c(
+          failed,
+          experiment_id
+        )
+      }
+      
+    } else {
+      
+      deleted <- c(
+        deleted,
+        experiment_id
+      )
+    }
+  }
+  
+  
+  # ==========================================================
+  # 10. Final message
+  # ==========================================================
+  
+  message("")
+  message(
+    length(deleted),
+    " orphan experiment(s) deleted."
+  )
+  
+  
+  if (length(failed) > 0) {
+    
+    message(
+      length(failed),
+      " experiment(s) could not be completely deleted."
+    )
+  }
+  
+  
+  # ==========================================================
+  # 11. Return
+  # ==========================================================
+  
+  invisible(
+    list(
+      physical_results = physical_results,
+      orphan_experiments = physical_orphans,
+      database_without_folder = db_only_experiments,
+      deleted = deleted,
+      failed = failed,
+      dry_run = FALSE,
+      success = length(failed) == 0
+    )
+  )
+}
+
+

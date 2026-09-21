@@ -15,12 +15,21 @@ st1_get_xml_files <- function(config_file) {
   return(xml_files)
 }
 
-st1_get_xmls_with_logit <- function(xml_files, xml_dir) {
-  Filter(function(f) {
-    doc <- read_xml(file.path(xml_dir, f))
-    length(xml_find_all(doc, ".//logit-exponent")) > 0
-  }, xml_files)
+st1_get_xmls_with_value <- function(xml_files, dir_xml, value) {
+  
+  result <- lapply(value, function(v) {
+    Filter(function(f) {
+      doc <- read_xml(file.path(dir_xml, f))
+      !is.na(xml_find_first(doc, paste0(".//", v)))
+    }, xml_files)
+  })
+  
+  names(result) <- value
+  
+  result
 }
+
+
 
 
 
@@ -93,6 +102,118 @@ st2_extract_logits_anyXML<- function(xml_file){
       logit = as.numeric(xml_text(logit)),
       
       xpath = xml_path(logit),
+      
+      stringsAsFactors = FALSE
+      
+    )
+    
+  }
+  
+  do.call(rbind,salida)
+  
+}
+
+
+st2_extract_satiation_level <- function(xml_file){
+  
+  
+  doc <- read_xml(xml_file)
+  
+  satiation_levels <- xml_find_all(doc, ".//satiation-level")
+  
+  salida <- vector("list", length(satiation_levels))
+  
+  for(i in seq_along(satiation_levels)){
+    
+    satiation_level <- satiation_levels[[i]]
+    
+    padres <- xml_parents(satiation_level)
+    
+    region <- NA
+    gcam_consumer  <- NA
+    level <- NA
+    
+    for(p in padres){
+      
+      etiqueta <- xml_name(p)
+      
+      if(etiqueta == "region"){
+        region <- xml_attr(p,"name")
+      }
+      
+      if(etiqueta == "gcam-consumer"){
+        gcam_consumer  <- xml_attr(p,"name")
+        level <- "gcam-consumer"
+      }
+      
+    }
+    
+    salida[[i]] <- data.frame(
+      
+      xml_file = basename(xml_file),
+      
+      id = i,
+      
+      region = region,
+      
+      gcam_consumer = gcam_consumer,
+  
+      level = level,
+      
+      satiation_level = as.numeric(xml_text(satiation_level)),
+      
+      xpath = xml_path(satiation_level),
+      
+      stringsAsFactors = FALSE
+      
+    )
+    
+  }
+  
+  do.call(rbind,salida)
+  
+}
+
+st2_extract_price_elasticity_anyXML<- function(xml_file){
+  
+  
+  doc <- read_xml(xml_file)
+  
+  prices <- xml_find_all(doc, ".//price-elasticity")
+  
+  salida <- vector("list", length(prices))
+  
+  for(i in seq_along(prices)){
+    
+    price_elasticity <- prices[[i]]
+    
+    padres <- xml_parents(price_elasticity)
+    
+    region <- NA
+    
+    for(p in padres){
+      
+      etiqueta <- xml_name(p)
+      
+      if(etiqueta == "region"){
+        region <- xml_attr(p,"name")
+      }
+      
+    }
+    
+    salida[[i]] <- data.frame(
+      
+      xml_file = basename(xml_file),
+      
+      id = i,
+      
+      region = region,
+      
+      year = as.numeric(xml_attr(price_elasticity,"year")),
+      
+      price_elasticity = as.numeric(xml_text(price_elasticity)),
+      
+      xpath = xml_path(price_elasticity),
       
       stringsAsFactors = FALSE
       

@@ -56,7 +56,7 @@ perturbation_strategy = 'latin hyper cube'
 distribution = 'uniform'
 distribution_parameters = list('minVal' = 2, 'maxVal' = 50)
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
-experiment_id_to_add = NULL
+experiment_id_to_add = 'EXP_07b59f0c'
 uncertainty_introduction_function = 'introduce_aditive_Latin_HyperCube_uncertainty'
 
 
