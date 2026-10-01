@@ -30,87 +30,50 @@ xml_files <- c(
   "gas_trade_EUR.xml"
 )
 
+
 regions_eur <- c(
-  "Africa_Eastern",
-  "Africa_Northern",
-  "Africa_Southern",
-  "Africa_Western",
-  "Albania",
-  "Appenine_Peninsula",
-  "Argentina",
-  "Australia_NZ",
   "Austria",
-  "Belarus",
   "Belgium",
-  "Bosnia and Herzegovina",
-  "Brazil",
-  "British_Isles",
   "Bulgaria",
-  "Canada",
-  "Central America and Caribbean",
-  "Central Asia",
-  "Central_Eastern_Europe",
-  "Central_Western_Europe",
-  "China",
-  "Colombia",
   "Croatia",
   "Cyprus",
   "Czech Republic",
   "Denmark",
   "Estonia",
-  "European_Single_Market",
   "Finland",
   "France",
   "Germany",
   "Greece",
   "Hungary",
-  "Iberian_Peninsula",
-  "Iceland",
-  "India",
-  "Indonesia",
   "Ireland",
   "Italy",
-  "Japan",
   "Latvia",
   "Lithuania",
   "Luxembourg",
-  "Macedonia",
   "Malta",
-  "Mexico",
-  "Middle East",
-  "Moldova",
   "Netherlands",
-  "Northern_Europe",
-  "Norway",
-  "Pakistan",
   "Poland",
   "Portugal",
   "Romania",
-  "Russia",
-  "Serbia and Montenegro",
   "Slovakia",
   "Slovenia",
-  "South Africa",
-  "South America_Northern",
-  "South America_Southern",
-  "South Asia",
-  "South Korea",
-  "South_Eastern_Europe",
-  "Southeast Asia",
   "Spain",
   "Sweden",
-  "Switzerland",
-  "Taiwan",
+  "Albania",
+  "Bosnia and Herzegovina",
+  "Iceland",
+  "Macedonia",
+  "Moldova",
+  "Norway",
+  "Serbia and Montenegro",
   "Turkey",
   "UK",
-  "USA",
-  "Ukraine",
-  "Ukraine_Moldova"
+  "Ukraine"
 )
 
 
-gcam_path = 'C:/GCAM/Nacho/gcam_europe'
-alreadyPrepeared = T
+gcam_path = '../gcam_europe'
+alreadyPrepeared = F
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
@@ -123,7 +86,7 @@ distribution = 'uniform'
 distribution_parameters = list('minVal' = -20, 'maxVal' = 20)
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 uncertainty_introduction_function = 'introduce_aditive_heterogeneous_uncertainty'
-df_params_path = "C:/GCAM/Nacho/Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
+df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
 paramCol = "param"
 experiment_id_to_add = NULL
 
