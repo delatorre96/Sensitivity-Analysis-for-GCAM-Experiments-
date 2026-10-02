@@ -4,17 +4,23 @@ source("R/Experiment/7_1_init_experiment_dfParams.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 
+if (length(args) < 2) {
+  stop("Usage: Rscript script.R <experiment_id|NULL> <suffix>")
+}
+
 experiment_id_to_add <- if (args[1] == "NULL") NULL else args[1]
 suffix <- args[2]
 
-if (is.na(experiment_id_to_add) || is.na(suffix)) {
-  stop("Usage: Rscript script.R <experiment_id> <suffix>")
+if (is.null(suffix) || is.na(suffix)) {
+  stop("Suffix cannot be NULL or NA")
 }
 
-message("Experiment ID: ", experiment_id_to_add)
+message(
+  "Experiment ID: ",
+  if (is.null(experiment_id_to_add)) "NULL (new experiment)" else experiment_id_to_add
+)
+
 message("Worker suffix: ", suffix)
-
-
 
 
 xml_files <- c(
