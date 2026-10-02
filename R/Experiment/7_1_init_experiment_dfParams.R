@@ -3,7 +3,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL,
                             uncertainty_introduction_function = 'introduce_aditive_uncertainty', df_params_path, paramCol,
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
-                            interested_query_columns = NULL, experiment_id_to_add = NULL){
+                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix = '_cal'){
 
 
   source(here::here('R','Experiment','0_mainFunctions.R'))
@@ -22,7 +22,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   thisScript_path <<- getwd()
   print(thisScript_path)
 
-  set_gcam_paths(gcam_path)
+  set_gcam_paths(gcam_path = gcam_path, suffix = suffix)
 
   if (!file.exists("gcam_sensitivity.sqlite")) {
     create_database("gcam_sensitivity.sqlite")
