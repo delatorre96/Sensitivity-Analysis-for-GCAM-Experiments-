@@ -6,17 +6,8 @@
   <class name="ModelInterface.ModelGUI2.DbViewer">
     <!-- Example of the 1st query to be stored: NCEM -->
     <command name="XMLDB Batch File">
-      <queryFile>batch_queries/resource_production.xml</queryFile>
-      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/resource_production_0.csv</outFile>
-      <xmldbLocation>../database_basexdb</xmldbLocation>
-      <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
-      <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
-      <batchQuerySplitRunsInDifferentSheets>false</batchQuerySplitRunsInDifferentSheets>
-      <batchQueryReplaceResults>true</batchQueryReplaceResults>
-    </command>
-    <command name="XMLDB Batch File">
-      <queryFile>batch_queries/resource_supply_curves.xml</queryFile>
-      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/resource_supply_curves_0.csv</outFile>
+      <queryFile>batch_queries/outputs_by_tech.xml</queryFile>
+      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/outputs_by_tech_0.csv</outFile>
       <xmldbLocation>../database_basexdb</xmldbLocation>
       <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
       <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
