@@ -55,10 +55,10 @@ set_gcam_paths <- function(gcam_path, suffix = '_cal') {
 }
 
 
-create_new_config <- function(df_logits, exe_dir, config_file, suffix){
+create_new_config <- function(df_params, exe_dir, config_file, suffix){
   config <- read_xml(config_file)
 
-  archivos_modificar <- unique(df_logits$xml_file)
+  archivos_modificar <- unique(df_params$xml_file)
 
   # Todos los nodos <Value> de ScenarioComponents
   nodos <- xml_find_all(config, ".//ScenarioComponents/Value")

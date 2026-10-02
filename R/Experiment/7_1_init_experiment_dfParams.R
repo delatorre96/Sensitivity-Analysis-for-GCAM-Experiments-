@@ -41,9 +41,10 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   }
 
 
-
-  df_params <- read.csv(df_params_path)
-
+  df_params <- read.csv(df_params_path) %>%
+    mutate(
+      destination_file = sub("_cal\\.xml$", paste0(suffix, ".xml"), destination_file)
+    )
 
   if (is.null(experiment_id_to_add)){
     write_experiment_info(con = con,
