@@ -1,5 +1,22 @@
 source("R/Experiment/7_1_init_experiment_dfParams.R")
 
+#----- Arguments from command line -----
+
+args <- commandArgs(trailingOnly = TRUE)
+
+experiment_id_to_add <- if (args[1] == "NULL") NULL else args[1]
+suffix <- args[2]
+
+if (is.na(experiment_id_to_add) || is.na(suffix)) {
+  stop("Usage: Rscript script.R <experiment_id> <suffix>")
+}
+
+message("Experiment ID: ", experiment_id_to_add)
+message("Worker suffix: ", suffix)
+
+
+
+
 xml_files <- c(
   "en_supply_EUR.xml",
   "en_transformation_EUR.xml",
@@ -73,11 +90,11 @@ regions_eur <- c(
 
 
 gcam_path = '../gcam_europe'
-alreadyPrepeared = F
+alreadyPrepeared = T
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 10000
+n_iterations = 209
 project = 'Hindcasting'
 experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
 description = 'Test different random values per parameter using additive perturbation'
@@ -88,13 +105,13 @@ interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subse
 uncertainty_introduction_function = 'introduce_aditive_heterogeneous_uncertainty'
 df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
 paramCol = "param"
-experiment_id_to_add = NULL
+
 
 init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_interest,
                 xml_files, n_iterations, project , experiment_name, description ,
                 uncertainty_introduction_function, df_params_path, paramCol,
                 perturbation_strategy, distribution, distribution_parameters,
-                interested_query_columns, experiment_id_to_add )
+                interested_query_columns, experiment_id_to_add, suffix)
 
 
 
