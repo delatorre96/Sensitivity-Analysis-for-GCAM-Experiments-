@@ -86,8 +86,8 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
 
     createNewXml_other_params(df_params_copy)
-    create_new_config(df_params, exe_dir, config_file)
-    create_new_run_gcam()
+    create_new_config(df_params, exe_dir, config_file, suffix)
+    create_new_run_gcam(suffix)
 
     run_gcam(run_gcam_file_cal)
     executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))
