@@ -81,41 +81,92 @@ create_new_config <- function(df_params, exe_dir, config_file, suffix){
 }
 
 
-run_gcam <- function(bat_path) {
-  message('Running GCAM..')
-  bat_dir <- dirname(bat_path)
+run_gcam <- function(run_file) {
+
+  message("Running GCAM...")
+
+  run_dir <- dirname(run_file)
   old_wd <- getwd()
   on.exit(setwd(old_wd), add = TRUE)
-  setwd(bat_dir)
-  status <- system2("cmd.exe", args = c("/c", basename(bat_path)), stdout = "", stderr = "")
+
+  setwd(run_dir)
+
+  if (.Platform$OS.type == "windows") {
+
+    status <- system2(
+      "cmd.exe",
+      args = c("/c", basename(run_file)),
+      stdout = "",
+      stderr = ""
+    )
+
+  } else {
+
+    status <- system2(
+      "bash",
+      args = basename(run_file),
+      stdout = "",
+      stderr = ""
+    )
+
+  }
+
   cat(sprintf("\nGCAM terminó con código de salida %d\n", status))
+
   return(status)
 }
 
 
-create_new_run_gcam <- function(suffix){
-  old_wd <- getwd()
-  on.exit(setwd(old_wd), add = TRUE)
-  new_run_gcam_file <- paste0("C:/GCAM/Nacho/gcam_europe/exe/run-gcam",suffix,".bat")
+create_new_run_gcam <- function(
+    suffix,
+    exe_dir = "../gcam_europe/exe") {
 
-  bat_lines <- readLines(run_gcam_file)
+  run_gcam_file <- file.path(exe_dir, "run-gcam.sh")
 
-  bat_lines <- gsub(
+  new_run_gcam_file <- file.path(
+    exe_dir,
+    paste0("run-gcam", suffix, ".sh")
+  )
+
+  sh_lines <- readLines(run_gcam_file)
+
+  sh_lines <- gsub(
     "gcam\\.exe -C configuration\\.xml",
-    paste0("gcam.exe -C configuration",suffix,".xml"),
-    bat_lines
+    paste0("./gcam.exe -C configuration", suffix, ".xml"),
+    sh_lines
   )
 
-  bat_lines <- gsub(
-    "^pause$",
-    "REM pause",
-    bat_lines
-  )
+  writeLines(sh_lines, new_run_gcam_file)
 
-  writeLines(bat_lines, new_run_gcam_file)
+  Sys.chmod(new_run_gcam_file, mode = "0755")
 
+  return(new_run_gcam_file)
 }
 
+#
+# create_new_run_gcam <- function(suffix){
+#   old_wd <- getwd()
+#   on.exit(setwd(old_wd), add = TRUE)
+#   new_run_gcam_file <- paste0("C:/GCAM/Nacho/gcam_europe/exe/run-gcam",suffix,".bat")
+#
+#   bat_lines <- readLines(run_gcam_file)
+#
+#   bat_lines <- gsub(
+#     "gcam\\.exe -C configuration\\.xml",
+#     paste0("gcam.exe -C configuration",suffix,".xml"),
+#     bat_lines
+#   )
+#
+#   bat_lines <- gsub(
+#     "^pause$",
+#     "REM pause",
+#     bat_lines
+#   )
+#
+#   writeLines(bat_lines, new_run_gcam_file)
+#
+# }
+#
 
 
 
