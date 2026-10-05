@@ -40,8 +40,8 @@ set_gcam_paths <- function(gcam_path, suffix = '_cal') {
   dir_gcam <<- gcam_path
   config_file <<-  paste0(gcam_path,'/exe/configuration.xml')
   exe_dir <<- paste0(gcam_path,'/exe')
-  run_gcam_file <<- paste0(gcam_path,'/exe/run-gcam.bat')
-  run_gcam_file_cal <<- paste0(gcam_path,'/exe/run-gcam',suffix,'.bat')
+  run_gcam_file <<- paste0(gcam_path,'/exe/run-gcam.sh')
+  run_gcam_file_cal <<- paste0(gcam_path,'/exe/run-gcam',suffix,'.sh')
   dir_gcamdata <<- paste0(gcam_path,'/input/gcamdata')
   dir_xml <<- paste0(gcam_path,'/input/gcamdata/xml')
   log_gcam <<- paste0(gcam_path,'/exe/logs/main_log.txt')
