@@ -37,10 +37,13 @@ write_experiment_info <- function(con,
                                   project = NULL){
 
 
-  gcam_version <- system2(
-    "git",
-    c("-C", repo, "describe", "--tags"),
-    stdout = TRUE
+  gcam_version <- withr::with_dir(
+    repo,
+    system2(
+      "git",
+      "describe --tags",
+      stdout = TRUE
+    )
   )
 
   info <- data.frame(
