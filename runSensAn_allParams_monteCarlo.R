@@ -106,7 +106,7 @@ experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
 description = 'Test different random values per parameter using global parameter-space exploration'
 perturbation_strategy = 'Global parameter-space exploration'
 distribution = 'uniform'
-distribution_parameters = list('logit' = list('minVal' = -20, 'maxVal' = 0.01),
+distribution_parameters = list('logit' = list('minVal' = -20, 'maxVal' = -0.01),
                                'price_elasticity' = list('minVal' = -1.5, 'maxVal' = -0.01),
                                'satiation_level' = list('minVal' = 0.001, 'maxVal' = 3))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
