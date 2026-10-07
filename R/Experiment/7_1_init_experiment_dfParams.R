@@ -71,12 +71,10 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
       substr(UUIDgenerate(), 1, 8)
     )
 
-    min_val = distribution_parameters$minVal
-    max_val = distribution_parameters$maxVal
+
     uncertainVars <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
                                                             i = i,
-                                                            min_val = min_val,
-                                                            max_val = max_val,
+                                                            distribution_parameters,
                                                             df_params = df_params,
                                                             paramCol = paramCol)
 
