@@ -229,6 +229,9 @@ GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query){
 
   set_gcam_paths(gcam_path)
 
+  if (!dir.exists(file.path("data"))) {
+    dir.create('data', recursive = TRUE)
+  }
   st2_change_xmldb_batch(queries_of_interest, regions_per_query)
 
   file.copy(from = paste0(thisScript_path,'/files/XMLDBDriver.properties'), to = exe_dir,
