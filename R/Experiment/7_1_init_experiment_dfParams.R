@@ -3,7 +3,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL,
                             uncertainty_introduction_function = 'introduce_aditive_uncertainty', df_params_path, paramCol,
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
-                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix = '_cal'){
+                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix){
 
 
   source(here::here('R','Experiment','0_mainFunctions.R'))
@@ -25,14 +25,16 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   set_gcam_paths(gcam_path = gcam_path, suffix = suffix)
 
   if (!file.exists("gcam_sensitivity.sqlite")) {
+    message('No sqlite DDBB. Creating...')
     create_database("gcam_sensitivity.sqlite")
   }
+
 
   con <- DBI::dbConnect(
     RSQLite::SQLite(),
     "gcam_sensitivity.sqlite"
   )
-
+  message('sqlite DDBB in memory...')
 
   if (alreadyPrepeared == F){
     GCAM_preparation(gcam_path = gcam_path,
@@ -60,7 +62,13 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                           distribution = distribution,
                           distribution_parameters = distribution_parameters)
     create_experiment_folders(experiment_id = experiment_id)
-    }
+  }
+
+
+  create_new_config(df_params, exe_dir, config_file, suffix)
+  message('new config created in ',config_file)
+  create_new_run_gcam(suffix)
+  message('new run_gcam script created in ',run_gcam_file_cal)
 
   for (i in 1:n_iterations){
     message(paste0('************ITERATION ',i,'************' ))
@@ -70,7 +78,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
       substr(UUIDgenerate(), 1, 8)
     )
 
-
+    message('Introducing parametric uncertainty...')
     uncertainVars <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
                                                             i = i,
                                                             distribution_parameters,
@@ -80,13 +88,13 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     delta <- uncertainVars$delta
     df_params_copy <- uncertainVars$df_params_copy
 
-
+    message('Wrtiting new xml files...')
 
     createNewXml_other_params(df_params_copy)
-    create_new_config(df_params, exe_dir, config_file, suffix)
-    run_gcam_file <- create_new_run_gcam(suffix)
 
-    run_gcam(run_gcam_file)
+    message("Running GCAM...")
+
+    run_gcam(run_gcam_file_cal)
     executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))
 
     message('Saving results....')

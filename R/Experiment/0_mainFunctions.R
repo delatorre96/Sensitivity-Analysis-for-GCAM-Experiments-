@@ -33,7 +33,7 @@ check_packages <- function() {
 
 }
 
-set_gcam_paths <- function(gcam_path, suffix = '_cal') {
+set_gcam_paths <- function(gcam_path, suffix) {
   #Exmple:
   #dir_gcamdata <- "C:/Users/ignacio.delatorre/Documents/Understanding GCAM/gcam-core/input/gcamdata"
   suffix <<- suffix
@@ -83,7 +83,7 @@ create_new_config <- function(df_params, exe_dir, config_file, suffix){
 
 run_gcam <- function(run_file) {
 
-  message("Running GCAM...")
+
 
   run_dir <- dirname(run_file)
   old_wd <- getwd()
