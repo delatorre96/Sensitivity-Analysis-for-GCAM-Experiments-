@@ -227,7 +227,6 @@ st2_change_xmldb_batch <- function(
 
 GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query){
 
-  set_gcam_paths(gcam_path)
 
   if (!dir.exists(file.path("data"))) {
     dir.create('data', recursive = TRUE)
