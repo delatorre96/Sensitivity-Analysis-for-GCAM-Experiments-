@@ -45,7 +45,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   df_params <- read.csv(df_params_path) %>%
     mutate(
       destination_file = sub("_cal\\.xml$", paste0(suffix, ".xml"), destination_file)
-    ) %>% filter (xml_file != 'building_det_EUR.xml')
+    ) #%>% filter (xml_file != 'building_det_EUR.xml')
 
   if (is.null(experiment_id_to_add)){
     write_experiment_info(con = con,
@@ -70,6 +70,9 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   create_new_run_gcam(suffix)
   message('new run_gcam script created in ',run_gcam_file_cal)
 
+  cache <- build_xml_cache(df = df_params, dir_xml)
+  xml_lines <- cache$lines
+  df_params <- cache$df
   for (i in 1:n_iterations){
     message(paste0('************ITERATION ',i,'************' ))
     t1 <- Sys.time()
@@ -79,18 +82,14 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     )
 
     message('Introducing parametric uncertainty...')
-    uncertainVars <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
-                                                            i = i,
-                                                            distribution_parameters,
+    res <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
+                                                            distribution_parameters = distribution_parameters,
                                                             df_params = df_params,
                                                             paramCol = paramCol)
 
-    delta <- uncertainVars$delta
-    df_params_copy <- uncertainVars$df_params_copy
-
     message('Wrtiting new xml files...')
 
-    createNewXml_other_params(df_params_copy)
+    createNewXml_fast(res$df_params_copy, xml_lines, dir_xml)
 
     message("Running GCAM...")
 
@@ -98,7 +97,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))
 
     message('Saving results....')
-
+    df_params_copy <- res$df_params_copy
     df_params_copy$run_id <- run_id
 
     df_info_inputs <- save_inputs_parquet(df_params_copy = df_params_copy,

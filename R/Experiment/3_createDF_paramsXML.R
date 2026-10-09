@@ -114,65 +114,30 @@ st2_extract_logits_anyXML<- function(xml_file){
 }
 
 
-st2_extract_satiation_level <- function(xml_file){
-
-
+st2_extract_satiation_level <- function(xml_file) {
   doc <- read_xml(xml_file)
+  sl  <- xml_find_all(doc, ".//satiation-level")
+  inp <- xml_parent(xml_parent(sl))          # input del que cuelga la satiation-demand-function
 
-  satiation_levels <- xml_find_all(doc, ".//satiation-level")
-
-  salida <- vector("list", length(satiation_levels))
-
-  for(i in seq_along(satiation_levels)){
-
-    satiation_level <- satiation_levels[[i]]
-
-    padres <- xml_parents(satiation_level)
-
-    region <- NA
-    gcam_consumer  <- NA
-    level <- NA
-
-    for(p in padres){
-
-      etiqueta <- xml_name(p)
-
-      if(etiqueta == "region"){
-        region <- xml_attr(p,"name")
-      }
-
-      if(etiqueta == "gcam-consumer"){
-        gcam_consumer  <- xml_attr(p,"name")
-        level <- "gcam-consumer"
-      }
-
-    }
-
-    salida[[i]] <- data.frame(
-
-      xml_file = basename(xml_file),
-
-      id = i,
-
-      region = region,
-
-      gcam_consumer = gcam_consumer,
-
-      level = level,
-
-      satiation_level = as.numeric(xml_text(satiation_level)),
-
-      xpath = xml_path(satiation_level),
-
-      stringsAsFactors = FALSE
-
-    )
-
-  }
-
-  do.call(rbind,salida)
-
+  data.frame(
+    xml_file      = basename(xml_file),
+    id            = seq_along(sl),
+    region        = xml_attr(xml_find_first(sl, "ancestor::region"), "name"),
+    gcam_consumer = xml_attr(xml_find_first(sl, "ancestor::gcam-consumer"), "name"),
+    input_type    = xml_name(inp),           # building-node-input / thermal-... / building-service-input
+    input_name    = xml_attr(inp, "name"),   # comm_building, comm cooling EUR, comm others EUR...
+    value_default = as.numeric(xml_text(sl)),
+    xpath         = xml_path(sl),
+    stringsAsFactors = FALSE
+  ) |>
+    mutate(group = case_when(
+      input_type == "building-node-input"     ~ "floorspace",
+      grepl("heating", input_name)            ~ "heating",
+      grepl("cooling", input_name)            ~ "cooling",
+      TRUE                                    ~ "other_services"))
 }
+
+
 
 st2_extract_price_elasticity_anyXML<- function(xml_file){
 
@@ -223,6 +188,33 @@ st2_extract_price_elasticity_anyXML<- function(xml_file){
 
   do.call(rbind,salida)
 
+}
+
+
+# -----------------------------------------------------------------------------
+# 2. Índice de aparición: para cada fila, qué número de <tag> es en el fichero.
+#    Se ejecuta UNA vez, en el script que construye df_allParams.
+# -----------------------------------------------------------------------------
+tag_of <- c(logit            = "logit-exponent",
+            price_elasticity = "price-elasticity",
+            satiation_level  = "satiation-level")
+add_occurrence_index <- function(df, dir_xml) {
+  df$tag <- unname(tag_of[df$type_of_param])
+  df$occ <- NA_integer_
+  for (f in unique(df$xml_file)) {
+    doc <- read_xml(file.path(dir_xml, f))
+    for (tg in unique(df$tag[df$xml_file == f])) {
+      rows  <- which(df$xml_file == f & df$tag == tg)
+      paths <- xml_path(xml_find_all(doc, paste0("//", tg)))
+      df$occ[rows] <- match(df$xpath[rows], paths)
+    }
+    rm(doc); gc()
+  }
+  if (anyNA(df$occ)) {
+    stop("Hay xpath que no se encuentran entre los nodos de su etiqueta: ",
+         paste(head(df$xpath[is.na(df$occ)], 5), collapse = " | "))
+  }
+  df
 }
 
 
@@ -281,4 +273,26 @@ createDF_params <- function(xml_files, regions = NULL, interested_subsectors = N
 
 
 
-
+build_xml_cache <- function(df, dir_xml) {
+  lines_list <- list()
+  df$line <- NA_integer_
+  for (f in unique(df$xml_file)) {
+    lines <- readLines(file.path(dir_xml, f), encoding = "UTF-8", warn = FALSE)
+    rows  <- which(df$xml_file == f)
+    for (tg in unique(df$tag[rows])) {
+      pos <- grep(paste0("<", tg, "[ >]"), lines, perl = TRUE)
+      r   <- rows[df$tag[rows] == tg]
+      if (max(df$occ[r]) > length(pos)) stop("occ fuera de rango en ", f, " / ", tg)
+      df$line[r] <- pos[df$occ[r]]
+    }
+    # Verificación: el valor original de esa línea debe ser param_default
+    orig <- as.numeric(sub("^[^>]*>([^<]*)<.*$", "\\1", lines[df$line[rows]]))
+    bad  <- is.na(orig) | abs(orig - df$param_default[rows]) > 1e-6 * pmax(1, abs(orig))
+    if (any(bad)) {
+      stop("En ", f, " hay ", sum(bad), " filas cuya línea no contiene el valor esperado. ",
+           "¿Ha cambiado el XML original desde que se creó df_params?")
+    }
+    lines_list[[f]] <- lines
+  }
+  list(lines = lines_list, df = df)
+}

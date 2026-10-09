@@ -67,45 +67,53 @@ introduce_aditive_Latin_HyperCube_uncertainty <- function(n_iterations, i, min_v
 
 }
 
-
-introduce_aditive_heterogeneous_uncertainty <- function(
-    n_iterations = NULL,
-    i = NULL,
-    paramCol = 'logit',
-    min_val,
-    max_val,
-    df_params
-) {
+introduce_heterogeneous_uncertainty_by_type <- function(
+    n_iterations = NULL, i = NULL,
+    distribution_parameters, paramCol = "param", df_params) {
 
   df_params_copy <- df_params
   df_params_copy$year <- 2021
 
-  # Generar un delta independiente para cada logit
-  deltas <- round(
-    runif(length(df_params[[paramCol]]), min_val, max_val),
-    3
-  )
+  is_logit            <- df_params$type_of_param == "logit"
+  is_price_elasticity <- df_params$type_of_param == "price_elasticity"
+  is_satiation        <- df_params$type_of_param == "satiation_level"
 
-  # Calcular nuevos logits
-  new_logits <- df_params[[paramCol]] * (1 + deltas)
-
-  # Si algún logit resulta positivo, regenerar solo esos deltas
-  invalid <- new_logits > 0
-
-
-  while (any(invalid)) {
-    new_logits[invalid] <- new_logits[invalid] * (-1)
-    invalid <- new_logits > 0
+  if (any(!(is_logit | is_price_elasticity | is_satiation))) {
+    stop("Tipos de parámetro no reconocidos: ",
+         paste(unique(df_params$type_of_param[!(is_logit | is_price_elasticity | is_satiation)]),
+               collapse = ", "))
   }
 
-  df_params_copy[[paramCol]] <- round(new_logits, 2)
+  new_param <- df_params$param_default
+  mult_sat  <- NULL
 
-  return(
-    list(
-      df_params_copy = df_params_copy,
-      delta = NA_real_
-    )
-  )
+  if (any(is_logit)) {
+    dp <- distribution_parameters$logit
+    new_param[is_logit] <- runif(sum(is_logit), dp$minVal, dp$maxVal)
+  }
+
+  if (any(is_price_elasticity)) {
+    dp <- distribution_parameters$price_elasticity
+    new_param[is_price_elasticity] <- runif(sum(is_price_elasticity), dp$minVal, dp$maxVal)
+  }
+
+  if (any(is_satiation)) {
+    dp  <- distribution_parameters$satiation_level        # minVal/maxVal son MULTIPLICADORES
+    grp <- df_params$group[is_satiation]
+    if (identical(dp$by, "row")) {                        # un factor por fila
+      mult <- exp(runif(sum(is_satiation), log(dp$minVal), log(dp$maxVal)))
+    } else {                                              # por defecto: un factor por grupo
+      g        <- unique(grp)
+      mult_sat <- setNames(exp(runif(length(g), log(dp$minVal), log(dp$maxVal))), g)
+      mult     <- unname(mult_sat[grp])
+    }
+    new_param[is_satiation] <- df_params$param_default[is_satiation] * mult
+  }
+
+  # round(., 3) convertiría satiation de 1.8e-05 en 0: se usan cifras significativas
+  df_params_copy[[paramCol]] <- ifelse(is_satiation, signif(new_param, 6), round(new_param, 3))
+
+  list(df_params_copy = df_params_copy, delta = NA_real_, satiation_multipliers = mult_sat)
 }
 
 
