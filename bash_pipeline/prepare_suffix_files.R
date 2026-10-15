@@ -11,7 +11,8 @@
 #   Rscript --vanilla bash_pipeline/prepare_suffix_files.R --mode=check --suffix=_999 \
 #     [--gcam-path=../gcam_europe] [--df-params=...] [--config=...] [--repo-dir=.]
 #
-# Necesita xml2 (lo usa create_new_config()). Salida 0 = correcto; 1 = error.
+# --mode=check usa solo R base. --mode=create necesita xml2 porque lo usa
+# create_new_config(). Salida 0 = correcto; 1 = error.
 # =============================================================================
 
 .pipeline_dir <- local({
@@ -32,8 +33,17 @@ config_path    <- arg_or(kv$config, file.path(.pipeline_dir, "sensitivity_config
 if (is.null(suffix) || !grepl("^_[A-Za-z0-9]+$", suffix)) { message("--suffix obligatorio (_XXX)"); quit(status = 2) }
 if (!mode %in% c("create", "check")) { message("--mode debe ser create o check"); quit(status = 2) }
 
+# <Value>…</Value> de <ScenarioComponents>, ignorando comentarios (R base)
+scenario_component_values <- function(path) {
+  x <- paste(readLines(path, warn = FALSE), collapse = "\n")
+  x <- gsub("(?s)<!--.*?-->", "", x, perl = TRUE)
+  sc <- regmatches(x, gregexpr("(?s)<ScenarioComponents\\b.*?</ScenarioComponents>", x, perl = TRUE))[[1]]
+  if (length(sc) == 0) stop("No se encuentra <ScenarioComponents> en ", path)
+  v <- unlist(regmatches(sc, gregexpr("<Value\\b[^>]*>[^<]*</Value>", sc, perl = TRUE)))
+  trimws(sub("^<Value\\b[^>]*>([^<]*)</Value>$", "\\1", v, perl = TRUE))
+}
+
 main <- function() {
-  suppressPackageStartupMessages(library(xml2))
   cfg <- new.env(parent = globalenv()); sys.source(config_path, envir = cfg)
 
   exe_dir     <- file.path(gcam_path, "exe")
@@ -47,6 +57,11 @@ main <- function() {
     df_params <- df_params[!(df_params$xml_file %in% cfg$exclude_xml_files), , drop = FALSE]
 
   if (mode == "create") {
+    if (!requireNamespace("xml2", quietly = TRUE))
+      stop("--prepare necesita el paquete xml2 (lo usa create_new_config()) y este R no lo tiene: ",
+           R.home(), ". Instálalo (p. ej. 'conda install -n r44 -c conda-forge r-xml2') ",
+           "o crea configuration", suffix, ".xml y run-gcam", suffix, ".sh con el R donde sí funcione.")
+    suppressPackageStartupMessages(library(xml2))
     for (f in c(base_config, file.path(exe_dir, "run-gcam.sh")))
       if (!file.exists(f)) stop("No existe ", f)
     fx <- new.env(parent = globalenv())
@@ -62,7 +77,7 @@ main <- function() {
   if (!file.exists(new_config)) stop("No existe ", new_config, " (usar --prepare)")
   if (!file.exists(new_run))    stop("No existe ", new_run,    " (usar --prepare)")
 
-  values <- xml_text(xml_find_all(read_xml(new_config), ".//ScenarioComponents/Value"))
+  values <- scenario_component_values(new_config)
   bnames <- basename(values)
   originals <- unique(df_params$xml_file)
   expected  <- sub("\\.xml$", paste0(suffix, ".xml"), originals)

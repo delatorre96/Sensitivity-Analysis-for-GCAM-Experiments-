@@ -9,7 +9,7 @@
 | `sensitivity_config.R` | Rangos científicos y qué funciones del repo se reutilizan |
 | `lib_pipeline.R` | Utilidades: argumentos y `load_functions()` |
 | `prepare_suffix_files.R` | Crea/comprueba `configuration<suffix>.xml` y `run-gcam<suffix>.sh` con `create_new_config()` / `create_new_run_gcam()` |
-| `make_batch_xml.R` | Copia de `xmldb_batch.xml` cambiando solo `<outFile>` (con xml2) |
+| `make_batch_xml.R` | Copia de `xmldb_batch.xml` cambiando solo `<outFile>` del `<command>` de la consulta (R base, verificado) |
 | `slurm_sensitivity.sbatch` | Lanzamiento dentro de Slurm |
 
 ## Qué código existente se reutiliza
@@ -86,7 +86,8 @@ Todo desde `/scratch/gcamteam/hindcasting/GCAM_sensitivity_analysis`, después d
 ### 0. Comprobaciones previas (no ejecuta GCAM)
 
 ```bash
-bash bash_pipeline/run_sensitivity_bash.sh EXP_c9b80e40 1 _999 --check-only --prepare
+bash bash_pipeline/run_sensitivity_bash.sh EXP_c9b80e40 1 _999 --check-only
+# (añadir --prepare solo si hay que regenerar configuration_999.xml / run-gcam_999.sh; necesita xml2)
 cat $(ls -td logs_bash/EXP_c9b80e40_999/bash_* | head -1)/run.log
 ```
 
@@ -161,7 +162,8 @@ Variables de entorno: `RSCRIPT`, `GCAM_PATH`, `DF_PARAMS`, `QUERY_NAME`, `DATA_R
 ## Requisitos de R
 
 - `generate_iteration_xml.R`: solo R base (≥ 4.1, porque los ficheros del repo usan `|>`).
-- `prepare_suffix_files.R` y `make_batch_xml.R`: **xml2**.
+- `make_batch_xml.R` y la comprobación de `prepare_suffix_files.R`: solo R base.
+- Solo `--prepare` (que llama a `create_new_config()`) necesita **xml2**. Si `configuration<suffix>.xml` y `run-gcam<suffix>.sh` ya existen, no hace falta.
 - Todo se ejecuta con `Rscript --vanilla`, así que `.Rprofile` y renv no se activan. Se usa `$HOME/.conda/envs/r44/bin/Rscript`, o el de la variable `RSCRIPT`.
 
 ## Concurrencia

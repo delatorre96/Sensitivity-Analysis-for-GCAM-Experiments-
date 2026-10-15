@@ -175,8 +175,7 @@ log "seed_base=${SEED_BASE:-aleatoria}  on_error=$ON_ERROR  unsolved_policy=$UNS
 command -v flock >/dev/null || die "No se encuentra 'flock'"
 "$RSCRIPT" --vanilla -e 'cat(R.version.string, "| xml2:", if (requireNamespace("xml2", quietly=TRUE)) as.character(packageVersion("xml2")) else "NO INSTALADO", "\n")' \
   >> "$MAIN_LOG" 2>&1 || die "No se puede ejecutar '$RSCRIPT --vanilla' (ver $MAIN_LOG)"
-"$RSCRIPT" --vanilla -e 'quit(status = !requireNamespace("xml2", quietly = TRUE))' >/dev/null 2>&1 \
-  || die "R ($RSCRIPT --vanilla) no tiene xml2; hace falta para configuration${SUFFIX}.xml y el batch XML"
+# xml2 solo hace falta para --prepare (create_new_config()); el resto usa R base.
 
 for f in "$EXE_DIR/run-gcam.sh" "$EXE_DIR/configuration.xml" "$EXE_DIR/XMLDBDriver.properties" \
          "$BATCH_LIVE" "$EXE_DIR/$QUERY_FILE_REL" "$SCRIPT_DIR/generate_iteration_xml.R" "$R_CONFIG"; do
