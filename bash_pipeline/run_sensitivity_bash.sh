@@ -43,6 +43,7 @@
 #   DATA_ROOT  (data)   LOG_ROOT (logs_bash)
 #   GCAM_SUCCESS_PATTERN ("Model run completed")  vacío = no comprobar
 #   UNSOLVED_PATTERN     ("did not solve")
+#   GCAM_UNSOLVED_EXIT_CODES ("1")  exit de gcam.exe aceptado si hay periodos sin resolver
 #   REQUIRED_HEADER_COLS ("region,2021")
 #   R_CONFIG   (bash_pipeline/sensitivity_config.R)
 # =============================================================================
@@ -62,6 +63,7 @@ DATA_ROOT="${DATA_ROOT:-data}"
 LOG_ROOT="${LOG_ROOT:-logs_bash}"
 GCAM_SUCCESS_PATTERN="${GCAM_SUCCESS_PATTERN-Model run completed}"
 UNSOLVED_PATTERN="${UNSOLVED_PATTERN:-did not solve}"
+GCAM_UNSOLVED_EXIT_CODES="${GCAM_UNSOLVED_EXIT_CODES:-1}"
 REQUIRED_HEADER_COLS="${REQUIRED_HEADER_COLS:-region,2021}"
 R_CONFIG="${R_CONFIG:-$SCRIPT_DIR/sensitivity_config.R}"
 
@@ -390,12 +392,19 @@ run_iteration() {
   fi
 
   local gerr=""
-  if (( I_EXIT_G != 0 )); then
-    gerr="GCAM exit $I_EXIT_G (ver gcam_stdout.log)"
-  elif [[ ! -f "$GCAM_MAIN_LOG" || "$GCAM_MAIN_LOG" -ot "$MARKER" ]]; then
-    gerr="main_log.txt no se actualizó en esta iteración"
+  if [[ ! -f "$GCAM_MAIN_LOG" || "$GCAM_MAIN_LOG" -ot "$MARKER" ]]; then
+    gerr="GCAM exit $I_EXIT_G; main_log.txt no se actualizó en esta iteración"
   elif [[ -n "$GCAM_SUCCESS_PATTERN" ]] && ! grep -q "$GCAM_SUCCESS_PATTERN" "$GCAM_MAIN_LOG"; then
-    gerr="main_log.txt sin '$GCAM_SUCCESS_PATTERN'"
+    gerr="GCAM exit $I_EXIT_G; main_log.txt sin '$GCAM_SUCCESS_PATTERN'"
+  elif (( I_EXIT_G != 0 )); then
+    # gcam.exe devuelve 1 cuando la ejecución termina pero algún periodo no
+    # resolvió. Solo se acepta ese caso (exit en GCAM_UNSOLVED_EXIT_CODES +
+    # 'Model run completed' + líneas UNSOLVED_PATTERN); lo decide --unsolved-policy.
+    if [[ ",$GCAM_UNSOLVED_EXIT_CODES," == *",$I_EXIT_G,"* && "${I_UNSOLVED:-0}" -gt 0 ]]; then
+      log "GCAM exit $I_EXIT_G con $I_UNSOLVED líneas '$UNSOLVED_PATTERN': ejecución completa con periodos sin resolver"
+    else
+      gerr="GCAM exit $I_EXIT_G sin periodos sin resolver identificados (ver gcam_stdout.log)"
+    fi
   fi
   if [[ -n "$gerr" ]]; then
     [[ -f "$CSV_PARTIAL" ]] && mv -f "$CSV_PARTIAL" "$IT_DIR/${QUERY_NAME}.gcam_failed.csv"
