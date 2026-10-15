@@ -253,7 +253,7 @@ restore_batch() {
 reset_iter_state() {
   I_IT="$1"; I_SEED=""; I_START=""; I_T0=""; I_TXML=""; I_TGCAM=""; I_TEXP=""
   I_EXIT_R=""; I_EXIT_G=""; I_EXIT_E=""; I_NXML=""; I_ERRL=""; I_UNSOLVED=""
-  I_RSS_R=""; I_RSS_G=""; I_ROWS=""; I_MD5=""; I_STATUS="RUNNING"; I_CSV=""; I_ERR=""
+  I_RSS_R=""; I_RSS_G=""; I_UNSOLVED_PERIODS=""; I_ROWS=""; I_MD5=""; I_STATUS="RUNNING"; I_CSV=""; I_ERR=""
   I_RECORDED=0
 }
 record_iteration() {
@@ -389,6 +389,8 @@ run_iteration() {
   if [[ -f "$GCAM_MAIN_LOG" ]]; then
     I_ERRL="$(grep -ci 'error' "$GCAM_MAIN_LOG")"            # mismo criterio que init_experiment()
     I_UNSOLVED="$(grep -ci "$UNSOLVED_PATTERN" "$GCAM_MAIN_LOG")"
+    # "The following model periods did not solve: 5," -> "5" (periodo 5 = 2021 en esta config)
+    I_UNSOLVED_PERIODS="$(sed -n 's/.*periods did not solve:[[:space:]]*//p' "$GCAM_MAIN_LOG" | tail -1 | tr -d ' ' | sed 's/,$//; s/,/;/g')"
   fi
 
   local gerr=""
@@ -445,7 +447,7 @@ run_iteration() {
   if [[ "${I_UNSOLVED:-0}" -gt 0 && "$UNSOLVED_POLICY" == fail ]]; then
     mv -f "$CSV_PARTIAL" "$IT_DIR/${QUERY_NAME}.unsolved.csv"
     event "$it" export OK 0 "$I_TEXP" "CSV conservado solo en $IT_DIR"
-    I_STATUS="FAILED_UNSOLVED"; I_ERR="GCAM con periodos sin resolver ($I_UNSOLVED líneas)"
+    I_STATUS="FAILED_UNSOLVED"; I_ERR="GCAM: periodos sin resolver ${I_UNSOLVED_PERIODS:-?} ($I_UNSOLVED líneas)"
     record_iteration; return 1
   fi
 
@@ -458,7 +460,7 @@ run_iteration() {
   event "$it" export OK 0 "$I_TEXP" "$CSV_FINAL ($I_ROWS filas)"
 
   if [[ "${I_UNSOLVED:-0}" -gt 0 ]]; then
-    I_STATUS="OK_UNSOLVED"; I_ERR="GCAM con periodos sin resolver ($I_UNSOLVED líneas)"
+    I_STATUS="OK_UNSOLVED"; I_ERR="GCAM: periodos sin resolver ${I_UNSOLVED_PERIODS:-?} ($I_UNSOLVED líneas)"
   else
     I_STATUS="OK"
   fi
