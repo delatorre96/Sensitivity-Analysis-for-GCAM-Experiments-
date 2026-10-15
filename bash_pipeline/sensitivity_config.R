@@ -27,6 +27,11 @@ distribution_parameters <- list(
 # write_xml_fast() escribe siempre d$param, así que debe ser "param".
 paramCol <- "param"
 
+# Si df_allParams.csv no tiene param_default, crearla como param_default = param
+# (receta de others.R: mutate(param_default = param)). build_xml_cache()
+# comprueba que esos valores están realmente en los XML originales.
+derive_param_default_from_param <- TRUE
+
 # Ficheros XML a excluir. Vacío = igual que init_experiment() actual
 # (el filtro de building_det_EUR.xml está comentado allí).
 exclude_xml_files <- character(0)

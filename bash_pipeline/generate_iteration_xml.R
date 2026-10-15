@@ -198,6 +198,18 @@ main <- function() {
   # ---- Tabla de parámetros ---------------------------------------------------
   df_params <- read.csv(df_params_path, stringsAsFactors = FALSE)   # igual que init_experiment()
   if (nrow(df_params) == 0) stop("La tabla de parámetros está vacía: ", df_params_path)
+
+  # param_default: si falta, se toma de `param` (valor extraído del XML original),
+  # como en la receta de others.R: mutate(param_default = param).
+  # build_xml_cache() verifica después que ese valor está en el XML original.
+  if (!"param_default" %in% names(df_params)) {
+    if (!isTRUE(cfg$derive_param_default_from_param))
+      stop("Falta la columna param_default en df_params")
+    if (!cfg$paramCol %in% names(df_params)) stop("Falta la columna ", cfg$paramCol)
+    df_params$param_default <- df_params[[cfg$paramCol]]
+    message("  AVISO: df_params no tiene param_default; se usa param_default = ", cfg$paramCol,
+            " (se verifica contra los XML originales en build_xml_cache())")
+  }
   miss <- setdiff(cfg$required_columns, names(df_params))
   if (length(miss)) stop("Faltan columnas en df_params: ", paste(miss, collapse = ", "),
                          ". Disponibles: ", paste(names(df_params), collapse = ", "))
