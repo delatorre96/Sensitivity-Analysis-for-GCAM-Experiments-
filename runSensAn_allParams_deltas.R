@@ -102,13 +102,14 @@ regions_of_interest = regions_eur
 xml_files = xml_files
 n_iterations = 110
 project = 'Hindcasting'
-experiment_name = 'RL tuning of logits, satiation_level and price_elasticity deltas'
-description = 'Policy-gradient agent proposes one relative delta per parameter class to minimise MAE vs observed 2021'
+experiment_name = 'RL tuning of logit delta'
+description = 'Policy-gradient agent proposes one relative delta for all logits to minimise MAE vs observed 2021'
 perturbation_strategy = 'Reinforcement learning (Gaussian policy gradient over class deltas)'
 distribution = 'uniform'
-distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 4),
-                               'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 2),
-                               'satiation_level' = list('minVal' = 0.01, 'maxVal' = 3))
+distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 4)#,
+                               # 'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 2),
+                               # 'satiation_level' = list('minVal' = 0.01, 'maxVal' = 3)
+                               )
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 uncertainty_introduction_function = 'introduce_heterogeneous_uncertainty_by_delta'
 df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"

@@ -55,7 +55,8 @@ rl_default_config <- function() {
   )
 }
 
-rl_param_types <- c("logit", "price_elasticity", "satiation_level")
+# rl_param_types <- c("logit", "price_elasticity", "satiation_level")
+rl_param_types <- c("logit")   # solo se optimizan los logits
 
 
 #----- datos de referencia (observado vs GCAM base) --------------------------
@@ -355,11 +356,12 @@ apply_deltas_to_params <- function(df_params, deltas, paramCol = "param") {
 
   new_param <- base
   new_param[is_logit]            <- base[is_logit]            * (1 + deltas[["logit"]])
-  new_param[is_price_elasticity] <- base[is_price_elasticity] * (1 + deltas[["price_elasticity"]])
-  new_param[is_satiation]        <- base[is_satiation]        * (1 + deltas[["satiation_level"]])
+  # new_param[is_price_elasticity] <- base[is_price_elasticity] * (1 + deltas[["price_elasticity"]])
+  # new_param[is_satiation]        <- base[is_satiation]        * (1 + deltas[["satiation_level"]])
 
-  new_param[is_logit | is_price_elasticity] <- round(new_param[is_logit | is_price_elasticity], 3)
-  new_param[is_satiation] <- signif(new_param[is_satiation], 6)
+  # new_param[is_logit | is_price_elasticity] <- round(new_param[is_logit | is_price_elasticity], 3)
+  # new_param[is_satiation] <- signif(new_param[is_satiation], 6)
+  new_param[is_logit] <- round(new_param[is_logit], 3)   # solo logits: el resto queda en su valor por defecto
 
   if (any(new_param[is_logit] > 0) ||
       any(new_param[is_price_elasticity] > 0) ||
