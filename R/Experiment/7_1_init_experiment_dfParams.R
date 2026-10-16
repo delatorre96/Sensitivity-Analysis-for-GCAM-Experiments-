@@ -135,6 +135,15 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                                experiment_id = experiment_id)
 
 
+      ###########Reinforcement##########
+      delta #son los deltas en vector de tipo
+      # logit price_elasticity  satiation_level
+      # 2.078            0.342            0.187
+      df_run <- read_run_output (con = con,
+                                 query_name = queries_of_interest,
+                                 run_id = run_id)
+
+
   }
 
 }
