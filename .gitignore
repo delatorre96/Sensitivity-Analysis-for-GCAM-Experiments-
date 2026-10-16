@@ -24,3 +24,5 @@ files/*.xml
 Experiments
 data
 .Rproj.user
+
+logs_bash
