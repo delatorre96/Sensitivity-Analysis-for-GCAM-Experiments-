@@ -273,7 +273,7 @@ save_run_outputs <- function(
     ##------------------------------------------------------------
 
     query_name <- sub(
-      "0\\.csv$",
+      "_0\\.csv$",
       "",
       basename(source_file)
     )
