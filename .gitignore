@@ -13,6 +13,7 @@
 *.RData
 *.rds
 *.RDS
+.Rhistory
 files/*.xml
 
 # Excepto estos
