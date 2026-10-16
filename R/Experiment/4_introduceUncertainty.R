@@ -355,3 +355,145 @@ introduce_aditive_heterogeneous_uncertainty_satiation <- function(
   )
 }
 
+
+
+
+
+
+introduce_heterogeneous_uncertainty_by_delta <- function(
+    n_iterations = NULL, i = NULL,
+    distribution_parameters,
+    paramCol = "param",
+    df_params,
+    max_attempts = 10000) {
+
+  #----- preparar datos -----
+
+  df_params_copy <- df_params
+  df_params_copy$year <- 2021
+
+  is_logit            <- df_params$type_of_param == "logit"
+  is_price_elasticity <- df_params$type_of_param == "price_elasticity"
+  is_satiation        <- df_params$type_of_param == "satiation_level"
+
+  if (anyNA(df_params$type_of_param) ||
+      any(!(is_logit | is_price_elasticity | is_satiation))) {
+    stop("Existen tipos de parámetro no reconocidos.")
+  }
+
+  if (any(!is.finite(df_params$param_default))) {
+    stop("param_default contiene valores no finitos.")
+  }
+
+  required_types <- c(
+    "logit", "price_elasticity", "satiation_level"
+  )
+
+  if (!all(required_types %in% names(distribution_parameters))) {
+    stop("Faltan distribuciones para uno o más tipos de parámetros.")
+  }
+
+  #----- validar límites -----
+
+  for (type in required_types) {
+    dp <- distribution_parameters[[type]]
+
+    if (is.null(dp$minVal) || is.null(dp$maxVal) ||
+        length(dp$minVal) != 1 || length(dp$maxVal) != 1 ||
+        !is.finite(dp$minVal) || !is.finite(dp$maxVal) ||
+        dp$minVal > dp$maxVal) {
+      stop("Límites minVal/maxVal no válidos para: ", type)
+    }
+
+    if (dp$minVal <= -1) {
+      stop("minVal debe ser mayor que -1 para: ", type)
+    }
+  }
+
+  #----- muestrear delta y comprobar restricciones -----
+
+  sample_valid_delta <- function(type, mask, sign_constraint) {
+
+    dp <- distribution_parameters[[type]]
+    reference <- df_params$param_default[mask]
+
+    for (attempt in seq_len(max_attempts)) {
+
+      delta <- round(runif(1, dp$minVal, dp$maxVal), 3)
+      candidate <- reference * (1 + delta)
+
+      valid <- switch(
+        sign_constraint,
+        negative = all(candidate < 0),
+        positive = all(candidate > 0)
+      )
+
+      if (valid) {
+        return(delta)
+      }
+    }
+
+    stop(
+      "No se encontró un delta válido para ", type,
+      " después de ", max_attempts, " intentos. ",
+      "Comprueba los valores de referencia y los límites."
+    )
+  }
+
+  #----- generar los tres deltas -----
+
+  deltas <- c(
+    logit = sample_valid_delta(
+      "logit", is_logit, "negative"
+    ),
+    price_elasticity = sample_valid_delta(
+      "price_elasticity", is_price_elasticity, "negative"
+    ),
+    satiation_level = sample_valid_delta(
+      "satiation_level", is_satiation, "positive"
+    )
+  )
+
+  #----- aplicar perturbaciones -----
+
+  new_param <- as.numeric(as.character(df_params$param))
+
+  if (anyNA(new_param) || any(!is.finite(new_param))) {
+    stop("param contiene valores no numéricos o no finitos.")
+  }
+
+  new_param[is_logit] <-
+    df_params$param[is_logit] * (1 + deltas["logit"])
+
+  new_param[is_price_elasticity] <-
+    df_params$param[is_price_elasticity] *
+    (1 + deltas["price_elasticity"])
+
+  new_param[is_satiation] <-
+    df_params$param[is_satiation] *
+    (1 + deltas["satiation_level"])
+
+  #----- redondear y validar resultado final -----
+
+  new_param[is_logit | is_price_elasticity] <-
+    round(new_param[is_logit | is_price_elasticity], 3)
+
+  new_param[is_satiation] <-
+    signif(new_param[is_satiation], 6)
+
+  if (any(new_param[is_logit] > 0) ||
+      any(new_param[is_price_elasticity] > 0) ||
+      any(new_param[is_satiation] < 0)) {
+    stop("La perturbación genera parámetros inválidos tras el redondeo.")
+  }
+
+  df_params_copy[[paramCol]] <- new_param
+
+  #----- devolver resultados -----
+
+  list(
+    df_params_copy = df_params_copy,
+    delta = deltas
+  )
+}
+

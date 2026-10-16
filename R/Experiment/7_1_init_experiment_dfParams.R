@@ -86,7 +86,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                                                             distribution_parameters = distribution_parameters,
                                                             df_params = df_params,
                                                             paramCol = paramCol)
-
+    delta <- res$delta
     message('Wrtiting new xml files...')
 
     createNewXml_fast(res$df_params_copy, xml_lines, dir_xml)
@@ -126,7 +126,8 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                    run_id = run_id,
                    experiment_id = experiment_id,
                    execution_time =  as.numeric(t2 - t1, units = "mins"),
-                   execution_errors = executionErrors
+                   execution_errors = executionErrors,
+                   delta = delta
                    )
 
 
