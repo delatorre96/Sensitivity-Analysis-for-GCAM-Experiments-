@@ -102,9 +102,9 @@ regions_of_interest = regions_eur
 xml_files = xml_files
 n_iterations = 110
 project = 'Hindcasting'
-experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
-description = 'Test different random values per parameter using global parameter-space exploration'
-perturbation_strategy = 'Global parameter-space exploration'
+experiment_name = 'RL tuning of logits, satiation_level and price_elasticity deltas'
+description = 'Policy-gradient agent proposes one relative delta per parameter class to minimise MAE vs observed 2021'
+perturbation_strategy = 'Reinforcement learning (Gaussian policy gradient over class deltas)'
 distribution = 'uniform'
 distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 4),
                                'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 2),
@@ -114,12 +114,28 @@ uncertainty_introduction_function = 'introduce_heterogeneous_uncertainty_by_delt
 df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
 paramCol = "param"
 
+# 'rl': el agente de 8_reinforcementLearning.R propone los deltas
+# 'random': muestreo aleatorio con uncertainty_introduction_function (baseline)
+optimizer = 'rl'
+reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv'
+rl_config = list(
+  mode         = 'train',  # 'exploit' para correr con la media de la politica aprendida
+  batch_size   = 4,        # runs por actualizacion de la politica
+  lr_mean      = 0.30,
+  lr_log_sigma = 0.10,
+  init_sigma   = 1.5,
+  min_sigma    = 0.10,
+  reward_type  = 'log_ratio'
+)
+
 
 init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_interest,
                 xml_files, n_iterations, project , experiment_name, description ,
                 uncertainty_introduction_function, df_params_path, paramCol,
                 perturbation_strategy, distribution, distribution_parameters,
-                interested_query_columns, experiment_id_to_add, suffix)
+                interested_query_columns, experiment_id_to_add, suffix,
+                optimizer = optimizer, rl_config = rl_config,
+                reference_errors_path = reference_errors_path)
 
 
 

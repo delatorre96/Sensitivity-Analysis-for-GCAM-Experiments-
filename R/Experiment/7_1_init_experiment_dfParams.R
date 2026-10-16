@@ -3,18 +3,12 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL,
                             uncertainty_introduction_function = 'introduce_aditive_uncertainty', df_params_path, paramCol,
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
-                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix){
+                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix,
+                            optimizer = 'rl',            # 'rl': deltas propuestos por el agente; 'random': uncertainty_introduction_function
+                            rl_config = list(),          # ver rl_default_config() en 8_reinforcementLearning.R
+                            reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv'){
 
-
-  ############# Reinforcement  #############
-  ref_values <- read.csv('../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv')  %>%
-    select(where(~ !all(is.na(.)))) %>%
-    filter(region %in% regions_of_interest)
-
-  MAE_ref <- mean(ref_values$abs_error)
-  rm(ref_values)
-  ############# Reinforcement  #############
-
+  optimizer <- match.arg(optimizer, c('rl', 'random'))
 
   source(here::here('R','Experiment','0_mainFunctions.R'))
   check_packages()
@@ -25,7 +19,25 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   source(here::here('R','Experiment','4_introduceUncertainty.R'))
   source(here::here('R','Experiment','5_createNewXml.R'))
   source(here::here('R','Experiment','6_appendResults.R'))
+  source(here::here('R','Experiment','8_reinforcementLearning.R'))
   source(here::here('R','Storage','manageExperiments.R'))
+  source(here::here('R','Storage','explore_dataBase.R'))   # read_run_output()
+
+
+  ############# Reinforcement: referencia #############
+  # Errores del modelo base frente a lo observado (2021). El MAE de referencia
+  # de cada run se calcula sobre las mismas filas que el MAE del run.
+  track_mae <- file.exists(reference_errors_path)
+  if (!track_mae && optimizer == 'rl') {
+    stop('optimizer = "rl" necesita el fichero de referencia: ', reference_errors_path)
+  }
+  if (track_mae) {
+    ref_values <- rl_load_reference(reference_errors_path, regions_of_interest)
+    MAE_ref_global <- mean(ref_values$abs_error)
+    message('MAE de referencia (todas las filas): ', signif(MAE_ref_global, 5))
+  }
+  ############# Reinforcement: referencia #############
+
 
   experiment_id = create_or_add_experiment_id(experiment_id_to_add)
 
@@ -44,6 +56,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     RSQLite::SQLite(),
     "gcam_sensitivity.sqlite"
   )
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
   message('sqlite DDBB in memory...')
 
   if (alreadyPrepeared == F){
@@ -75,6 +88,22 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   }
 
 
+  ############# Reinforcement: agente #############
+  # Un agente por experimento y worker (suffix). Si el experimento ya existe
+  # (experiment_id_to_add) y hay estado guardado, el agente se reanuda.
+  if (track_mae) {
+    rl_state_file <- rl_state_path(experiment_id, suffix)
+    if (optimizer == 'random') {
+      # en modo random el agente solo registra MAE/reward, no aprende
+      rl_config <- utils::modifyList(rl_config, list(mode = 'observe'))
+    }
+    agent <- rl_init_agent(distribution_parameters = distribution_parameters,
+                           rl_config = rl_config,
+                           state_path = rl_state_file)
+  }
+  ############# Reinforcement: agente #############
+
+
   create_new_config(df_params, exe_dir, config_file, suffix)
   message('new config created in ',config_file)
   create_new_run_gcam(suffix)
@@ -92,11 +121,26 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     )
 
     message('Introducing parametric uncertainty...')
-    res <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
-                                                            distribution_parameters = distribution_parameters,
-                                                            df_params = df_params,
-                                                            paramCol = paramCol)
+    if (optimizer == 'rl') {
+      # el agente propone los deltas (exploración/explotación según su política)
+      proposal <- rl_propose(agent)
+      res <- apply_deltas_to_params(df_params = df_params,
+                                    deltas = proposal$deltas,
+                                    paramCol = paramCol)
+    } else {
+      res <- get(uncertainty_introduction_function)(n_iterations = n_iterations,
+                                                    distribution_parameters = distribution_parameters,
+                                                    df_params = df_params,
+                                                    paramCol = paramCol)
+      random_delta <- if (!is.null(names(res$delta)) && all(rl_param_types %in% names(res$delta))) {
+        res$delta[rl_param_types]
+      } else {
+        setNames(rep(NA_real_, length(rl_param_types)), rl_param_types)
+      }
+      proposal <- list(u = NULL, deltas = random_delta, mode = 'random')
+    }
     delta <- res$delta
+    message('Deltas: ', paste(names(delta), delta, sep = ' = ', collapse = ', '))
     message('Wrtiting new xml files...')
 
     createNewXml_fast(res$df_params_copy, xml_lines, dir_xml)
@@ -127,9 +171,6 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     delete_iteration_csvs()
 
 
-
-
-
     t2 <- Sys.time()
 
     write_run_info(con = con,
@@ -141,30 +182,49 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                    )
 
 
-      update_number_iterations(con = con,
-                               experiment_id = experiment_id)
+    update_number_iterations(con = con,
+                             experiment_id = experiment_id)
 
 
-      ###########Reinforcement##########
-      #delta #son los deltas en vector de tipo
-      # logit price_elasticity  satiation_level
-      # 2.078            0.342            0.187
-      df_run <- read_run_output (con = con,
-                                 query_name = queries_of_interest,
-                                 run_id = run_id) %>%
-        left_join(ref_values, by = c('region', 'technology', 'subsector', 'output', 'sector'))   %>%
-        filter(!is.na(value_ref) & !is.na(`2021`)) %>%
-        mutate(error_abs = abs(value_ref -`2021`),
-               error = value_ref -`2021`)%>%
-        select(-`2021`, -value_ref)
-      MAE_run <-  mean(df_run$abs_error)
-      print(MAE_run)
-      ### Usar MAE comparado a MAE_ref como penalizacion o noz. Si MAE_run < MAE_ref refuezo positivo si MAE_run > MAE_ref refuerzo negativo
-      #Tocar los deltas para explorar
+    ########### Reinforcement: evaluación, recompensa y aprendizaje ##########
+    if (track_mae) {
+      # mismo criterio de fallo que en la tabla Runs (errores en el log de GCAM)
+      failed <- isTRUE(executionErrors)
 
+      evaluation <- if (failed) {
+        list(MAE_run = NA_real_, MAE_ref = NA_real_, n_obs = 0L)
+      } else {
+        rl_evaluate_run(con = con,
+                        run_id = run_id,
+                        query_name = queries_of_interest[1],
+                        ref_values = ref_values)
+      }
 
+      MAE_run <- evaluation$MAE_run
+      MAE_ref <- evaluation$MAE_ref
+
+      # refuerzo positivo si MAE_run < MAE_ref, negativo si MAE_run > MAE_ref
+      reward <- rl_reward(MAE_run = MAE_run, MAE_ref = MAE_ref,
+                          failed = failed || evaluation$n_obs == 0,
+                          config = agent$config)
+
+      agent <- rl_update(agent = agent,
+                         proposal = proposal,
+                         reward = reward,
+                         evaluation = evaluation,
+                         run_id = run_id)
+
+      rl_save_agent(agent, rl_state_file)
+      rl_write_history(con = con, experiment_id = experiment_id,
+                       suffix = suffix, agent = agent)
+    }
+    ########### Reinforcement ##########
 
   }
 
-}
+  if (track_mae) {
+    rl_summary(agent)
+    return(invisible(agent))
+  }
 
+}
