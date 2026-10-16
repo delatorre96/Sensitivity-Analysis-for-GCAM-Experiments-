@@ -6,6 +6,16 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             interested_query_columns = NULL, experiment_id_to_add = NULL, suffix){
 
 
+  ############# Reinforcement  #############
+  ref_values <- read.csv('../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv')  %>%
+    select(where(~ !all(is.na(.)))) %>%
+    filter(region %in% regions_of_interest)
+
+  MAE_ref <- mean(ref_values$abs_error)
+  rm(ref_values)
+  ############# Reinforcement  #############
+
+
   source(here::here('R','Experiment','0_mainFunctions.R'))
   check_packages()
 
@@ -136,12 +146,22 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
 
       ###########Reinforcement##########
-      delta #son los deltas en vector de tipo
+      #delta #son los deltas en vector de tipo
       # logit price_elasticity  satiation_level
       # 2.078            0.342            0.187
       df_run <- read_run_output (con = con,
                                  query_name = queries_of_interest,
-                                 run_id = run_id)
+                                 run_id = run_id) %>%
+        left_join(ref_values, by = c('region', 'technology', 'subsector', 'output', 'sector'))   %>%
+        filter(!is.na(value_ref) & !is.na(`2021`)) %>%
+        mutate(error_abs = abs(value_ref -`2021`),
+               error = value_ref -`2021`)%>%
+        select(-`2021`, -value_ref)
+      MAE_run <-  mean(df_run$abs_error)
+      print(MAE_run)
+      ### Usar MAE comparado a MAE_ref como penalizacion o noz. Si MAE_run < MAE_ref refuezo positivo si MAE_run > MAE_ref refuerzo negativo
+      #Tocar los deltas para explorar
+
 
 
   }
