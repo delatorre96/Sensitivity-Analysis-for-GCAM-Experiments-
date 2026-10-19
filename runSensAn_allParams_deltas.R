@@ -96,7 +96,7 @@ regions_eur <- c(
 
 
 gcam_path = '../gcam_europe'
-alreadyPrepeared = T
+alreadyPrepeared = F
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files

@@ -13,8 +13,8 @@
 *.RData
 *.rds
 *.RDS
-.Rhistory
 files/*.xml
+*.Rhistory
 
 # Excepto estos
 !files/allQueries.xml

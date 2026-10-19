@@ -7,7 +7,7 @@
     <!-- Example of the 1st query to be stored: NCEM -->
     <command name="XMLDB Batch File">
       <queryFile>batch_queries/outputs_by_tech.xml</queryFile>
-      <outFile>C:/GCAM/Nacho/GCAM_sensitivity_analysis/data/outputs_by_tech_0.csv</outFile>
+      <outFile>C:/GCAM/Nacho/Sensitivity-Analysis-reinforce/data/outputs_by_tech_0.csv</outFile>
       <xmldbLocation>../database_basexdb</xmldbLocation>
       <batchQueryResultsInDifferentSheets>false</batchQueryResultsInDifferentSheets>
       <batchQueryIncludeCharts>false</batchQueryIncludeCharts>
