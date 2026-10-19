@@ -187,37 +187,29 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
 
     ########### Reinforcement: evaluación, recompensa y aprendizaje ##########
-    if (track_mae) {
-      # mismo criterio de fallo que en la tabla Runs (errores en el log de GCAM)
-      failed <- isTRUE(executionErrors)
-
-      evaluation <- if (failed) {
-        list(MAE_run = NA_real_, MAE_ref = NA_real_, n_obs = 0L)
-      } else {
-        rl_evaluate_run(con = con,
+    evaluation <- rl_evaluate_run(con = con,
                         run_id = run_id,
                         query_name = queries_of_interest[1],
                         ref_values = ref_values)
-      }
 
-      MAE_run <- evaluation$MAE_run
-      MAE_ref <- evaluation$MAE_ref
+    MAE_run <- evaluation$MAE_run
+    MAE_ref <- evaluation$MAE_ref
 
       # refuerzo positivo si MAE_run < MAE_ref, negativo si MAE_run > MAE_ref
-      reward <- rl_reward(MAE_run = MAE_run, MAE_ref = MAE_ref,
-                          failed = failed || evaluation$n_obs == 0,
-                          config = agent$config)
+    reward <- rl_reward(MAE_run = MAE_run, MAE_ref = MAE_ref,
+                        failed = failed || evaluation$n_obs == 0,
+                        config = agent$config)
 
-      agent <- rl_update(agent = agent,
-                         proposal = proposal,
-                         reward = reward,
-                         evaluation = evaluation,
-                         run_id = run_id)
+    agent <- rl_update(agent = agent,
+                       proposal = proposal,
+                       reward = reward,
+                       evaluation = evaluation,
+                       run_id = run_id)
 
-      rl_save_agent(agent, rl_state_file)
-      rl_write_history(con = con, experiment_id = experiment_id,
-                       suffix = suffix, agent = agent)
-    }
+    rl_save_agent(agent, rl_state_file)
+    rl_write_history(con = con, experiment_id = experiment_id,
+                     suffix = suffix, agent = agent)
+
     ########### Reinforcement ##########
 
   }
