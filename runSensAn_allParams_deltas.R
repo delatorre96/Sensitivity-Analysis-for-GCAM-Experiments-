@@ -96,11 +96,11 @@ regions_eur <- c(
 
 
 gcam_path = '../gcam_europe'
-alreadyPrepeared = T
+alreadyPrepeared = F
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 110
+n_iterations = 2
 project = 'Hindcasting'
 experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
 description = 'Test different random values per parameter using global parameter-space exploration'
