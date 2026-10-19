@@ -236,7 +236,7 @@ save_run_outputs <- function(
 
   source_files <- list.files(
     gcam_output_dir,
-    pattern = "0\\.csv$",
+    pattern = "_0\\.csv$",
     full.names = TRUE
   )
 
