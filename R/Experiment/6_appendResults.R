@@ -68,25 +68,73 @@ write_experiment_info <- function(con,
 
 }
 
+
 write_run_info <- function(con,
                            run_id,
                            experiment_id,
                            execution_time,
                            execution_errors = NULL,
-                           delta = NULL){
+                           delta = NULL) {
 
+  #----- preparar deltas -----
+
+  delta_logit <- NA_real_
+  delta_price_elasticity <- NA_real_
+  delta_satiation_level <- NA_real_
+  delta_legacy <- NA_real_
+
+  if (!is.null(delta)) {
+
+    if (length(delta) == 1 && is.null(names(delta))) {
+
+      # Compatibilidad con experimentos antiguos
+      delta_legacy <- as.numeric(delta)
+
+    } else if (!is.null(names(delta))) {
+
+      # Nuevos experimentos con tres deltas
+      delta_logit <- if ("logit" %in% names(delta)) {
+        as.numeric(delta[["logit"]])
+      } else {
+        NA_real_
+      }
+
+      delta_price_elasticity <-
+        if ("price_elasticity" %in% names(delta)) {
+          as.numeric(delta[["price_elasticity"]])
+        } else {
+          NA_real_
+        }
+
+      delta_satiation_level <-
+        if ("satiation_level" %in% names(delta)) {
+          as.numeric(delta[["satiation_level"]])
+        } else {
+          NA_real_
+        }
+
+    } else {
+      stop("delta debe ser un escalar numérico o un vector nombrado.")
+    }
+  }
+
+  #----- preparar registro -----
 
   info <- data.frame(
     run_id = run_id,
     experiment_id = experiment_id,
     execution_time = execution_time,
     execution_errors = execution_errors,
-    delta =  if (is.null(delta)) NA_character_ else delta,
+    delta = delta_legacy,
+    delta_logit = delta_logit,
+    delta_price_elasticity = delta_price_elasticity,
+    delta_satiation_level = delta_satiation_level,
     stringsAsFactors = FALSE
   )
 
-  dbAppendTable(con, "Runs", info)
+  #----- guardar en SQL -----
 
+  DBI::dbAppendTable(con, "Runs", info)
 }
 
 
@@ -188,7 +236,7 @@ save_run_outputs <- function(
 
   source_files <- list.files(
     gcam_output_dir,
-    pattern = "0\\.csv$",
+    pattern = "_0\\.csv$",
     full.names = TRUE
   )
 
@@ -273,7 +321,7 @@ save_run_outputs <- function(
     ##------------------------------------------------------------
 
     query_name <- sub(
-      "0\\.csv$",
+      "_0\\.csv$",
       "",
       basename(source_file)
     )

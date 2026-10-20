@@ -3,7 +3,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             xml_files = xml_files, n_iterations = 100, project = 'Hindcasting', experiment_name = 'Prueba', description = NULL,
                             uncertainty_introduction_function = 'introduce_aditive_uncertainty', df_params_path, paramCol,
                             perturbation_strategy = 'aditive', distribution = 'uniform', distribution_parameters = list('minVal' = -2, 'maxVal' = 2),
-                            interested_query_columns = NULL, experiment_id_to_add = NULL){
+                            interested_query_columns = NULL, experiment_id_to_add = NULL, suffix = '_opt'){
 
 
   source(here::here('R','Experiment','0_mainFunctions.R'))
@@ -21,7 +21,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
   thisScript_path <- getwd()
 
-  set_gcam_paths(gcam_path)
+  set_gcam_paths(gcam_path, suffix)
 
   if (!file.exists("gcam_sensitivity.sqlite")) {
     create_database("gcam_sensitivity.sqlite")
@@ -41,7 +41,10 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
 
 
-  df_params <- read.csv(df_params_path)
+  df_params <- read.csv(df_params_path) %>%
+    mutate(
+      destination_file = sub("_cal\\.xml$", paste0(suffix, ".xml"), destination_file)
+    )
 
 
   if (is.null(experiment_id_to_add)){
@@ -61,6 +64,16 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     create_experiment_folders(experiment_id = experiment_id)
   }
 
+
+  create_new_config(df_params, exe_dir, config_file, suffix)
+  message('new config created in ',config_file)
+  create_new_run_gcam(suffix)
+  message('new run_gcam script created in ',run_gcam_file_cal)
+
+  cache <- build_xml_cache(df = df_params, dir_xml)
+  xml_lines <- cache$lines
+  df_params <- cache$df
+
   for (i in 1:length(df_params$param_config)){
     message(paste0('************ITERATION ',i,'************' ))
     t1 <- Sys.time()
@@ -68,14 +81,11 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
       "RUN_",
       substr(UUIDgenerate(), 1, 8)
     )
-    df_params_copy <- df_params %>%
-      filter(param_config == i)
+    df_params_copy <- df_params
 
 
 
-    createNewXml_other_params(df_params_copy)
-    create_new_config(df_params, exe_dir, config_file)
-    create_new_run_gcam()
+    createNewXml_fast(df_params_copy, xml_lines, dir_xml)
 
     run_gcam(run_gcam_file_cal)
     executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))

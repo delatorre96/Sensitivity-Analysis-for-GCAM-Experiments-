@@ -40,8 +40,8 @@ set_gcam_paths <- function(gcam_path, suffix) {
   dir_gcam <<- gcam_path
   config_file <<-  paste0(gcam_path,'/exe/configuration.xml')
   exe_dir <<- paste0(gcam_path,'/exe')
-  run_gcam_file <<- paste0(gcam_path,'/exe/run-gcam.sh')
-  run_gcam_file_cal <<- paste0(gcam_path,'/exe/run-gcam',suffix,'.sh')
+  run_gcam_file <<- paste0(gcam_path,'/exe/run-gcam.bat')
+  run_gcam_file_cal <<- paste0(gcam_path,'/exe/run-gcam',suffix,'.bat')
   dir_gcamdata <<- paste0(gcam_path,'/input/gcamdata')
   dir_xml <<- paste0(gcam_path,'/input/gcamdata/xml')
   log_gcam <<- paste0(gcam_path,'/exe/logs/main_log.txt')
@@ -144,29 +144,29 @@ create_new_run_gcam <- function(
 }
 
 #
-# create_new_run_gcam <- function(suffix){
-#   old_wd <- getwd()
-#   on.exit(setwd(old_wd), add = TRUE)
-#   new_run_gcam_file <- paste0("C:/GCAM/Nacho/gcam_europe/exe/run-gcam",suffix,".bat")
-#
-#   bat_lines <- readLines(run_gcam_file)
-#
-#   bat_lines <- gsub(
-#     "gcam\\.exe -C configuration\\.xml",
-#     paste0("gcam.exe -C configuration",suffix,".xml"),
-#     bat_lines
-#   )
-#
-#   bat_lines <- gsub(
-#     "^pause$",
-#     "REM pause",
-#     bat_lines
-#   )
-#
-#   writeLines(bat_lines, new_run_gcam_file)
-#
-# }
-#
+create_new_run_gcam <- function(suffix){
+  old_wd <- getwd()
+  on.exit(setwd(old_wd), add = TRUE)
+  new_run_gcam_file <- paste0("C:/GCAM/Nacho/gcam_europe/exe/run-gcam",suffix,".bat")
+
+  bat_lines <- readLines(run_gcam_file)
+
+  bat_lines <- gsub(
+    "gcam\\.exe -C configuration\\.xml",
+    paste0("gcam.exe -C configuration",suffix,".xml"),
+    bat_lines
+  )
+
+  bat_lines <- gsub(
+    "^pause$",
+    "REM pause",
+    bat_lines
+  )
+
+  writeLines(bat_lines, new_run_gcam_file)
+
+}
+
 
 
 
