@@ -1,173 +1,173 @@
 # Sensitivity Analysis for GCAM Experiments
 
-Framework en R para lanzar **experimentos de incertidumbre paramétrica sobre GCAM-Europe**, guardar de forma trazable los parámetros y las salidas de cada ejecución, y (opcionalmente) **buscar configuraciones que reduzcan el error de hindcasting de 2021** con un agente de reinforcement learning.
+An R framework for running **parametric-uncertainty experiments on GCAM-Europe**. It stores the parameters and outputs of every run in a traceable way and can **search for configurations that reduce the 2021 hindcasting error** with a reinforcement-learning agent (optional).
 
-Forma parte del proyecto *Hindcasting and evaluation of GCAM-Europe* (BC3). En la arquitectura del proyecto corresponde sobre todo a la **Fase 3 (incertidumbre y sensibilidad)** y alimenta las **Fases 4–5 (modelos sustitutos y calibración)**.
+It belongs to the *Hindcasting and evaluation of GCAM-Europe* project (BC3). Within the project architecture it mainly covers **Phase 3 (uncertainty and sensitivity analysis)** and feeds **Phases 4–5 (surrogate models and calibration)**.
 
 ---
 
-## 1. Qué hace, en una frase
+## 1. What it does, in one sentence
 
-Para cada iteración: **perturba** logits, elasticidades de precio y/o niveles de saciedad en los XML de entrada de GCAM → **ejecuta GCAM** → extrae la query de interés (por defecto `outputs by tech`) → guarda **inputs y outputs en Parquet** → registra todo en un **catálogo SQLite** (`gcam_sensitivity.sqlite`).
+For each iteration it **perturbs** logit exponents, price elasticities and/or satiation levels in GCAM's input XMLs, **runs GCAM**, extracts the query of interest (`outputs by tech` by default), **saves inputs and outputs as Parquet**, and records everything in a **SQLite catalogue** (`gcam_sensitivity.sqlite`).
 
 ```
-df_allParams.csv ──► perturbación ──► XML *_<suffix>.xml ──► GCAM (configuration<suffix>.xml)
+df_allParams.csv ──► perturbation ──► XML *_<suffix>.xml ──► GCAM (configuration<suffix>.xml)
                                                                      │
                                                     batch query (ModelInterface)
                                                                      ▼
- gcam_sensitivity.sqlite ◄── metadatos ── Experiments/<EXP_id>/{inputs,outputs}/…/<RUN_id>.parquet
+ gcam_sensitivity.sqlite ◄── metadata ── Experiments/<EXP_id>/{inputs,outputs}/…/<RUN_id>.parquet
 ```
 
 ---
 
-## 2. Estructura del repositorio
+## 2. Repository layout
 
 ```
 .
-├── runSensAn_allParams_monteCarlo_debug.R   # Lanzador: Monte Carlo global (muestreo uniforme absoluto)
-├── runSensAn_allParams_deltas.R             # Lanzador: deltas relativos + agente RL (o muestreo aleatorio)
-├── runSensParam_pretrained.R                # Lanzador: evaluar configuraciones fijas (p. ej. propuestas por el GAM)
+├── runSensAn_allParams_monteCarlo_debug.R   # Launcher: global Monte Carlo (absolute uniform sampling)
+├── runSensAn_allParams_deltas.R             # Launcher: relative deltas + RL agent (or random sampling)
+├── runSensParam_pretrained.R                # Launcher: evaluate fixed configurations (e.g. proposed by the GAM)
 │
 ├── R/
-│   ├── Experiment/                          # Pipeline de ejecución (numerado por etapa)
-│   │   ├── 0_mainFunctions.R                # Paquetes, rutas de GCAM, config/.bat por worker, run_gcam()
-│   │   ├── 1_create_dataBase.R              # Esquema SQLite (Experiments, Runs, Datasets)
-│   │   ├── 2_PrepareGCAM.R                  # Prepara las batch queries de ModelInterface
-│   │   ├── 3_createDF_paramsXML.R           # Extrae parámetros de los XML y construye la caché de líneas
-│   │   ├── 4_introduceUncertainty.R         # Estrategias de perturbación
-│   │   ├── 5_createNewXml.R                 # Escribe los XML perturbados
-│   │   ├── 6_appendResults.R                # Guarda Parquet y registra en SQLite
-│   │   ├── 7_init_experiment.R              # (legado) bucle original, solo logits
-│   │   ├── 7_1_init_experiment_dfParams.R   # Bucle con optimizer = 'rl' | 'random'
-│   │   ├── 7_2_init_experiment_dfParams.R   # Bucle Monte Carlo + monitorización de CPU/RAM
-│   │   ├── 7_2_init_experiment_dfParams_withoutUncer.R  # Bucle sin perturbación (configs predefinidas)
-│   │   ├── 8_reinforcementLearning.R        # Agente REINFORCE (policy gradient gaussiano)
-│   │   └── others.R                         # Copias/borradores de funciones (no se carga en el pipeline)
-│   └── Storage/                             # Consulta y mantenimiento de resultados
+│   ├── Experiment/                          # Execution pipeline (numbered by stage)
+│   │   ├── 0_mainFunctions.R                # Packages, GCAM paths, per-worker config/.bat, run_gcam()
+│   │   ├── 1_create_dataBase.R              # SQLite schema (Experiments, Runs, Datasets)
+│   │   ├── 2_PrepareGCAM.R                  # Prepares the ModelInterface batch queries
+│   │   ├── 3_createDF_paramsXML.R           # Extracts parameters from the XMLs and builds the line cache
+│   │   ├── 4_introduceUncertainty.R         # Perturbation strategies
+│   │   ├── 5_createNewXml.R                 # Writes the perturbed XMLs
+│   │   ├── 6_appendResults.R                # Saves Parquet files and records them in SQLite
+│   │   ├── 7_init_experiment.R              # (legacy) original loop, logits only
+│   │   ├── 7_1_init_experiment_dfParams.R   # Loop with optimizer = 'rl' | 'random'
+│   │   ├── 7_2_init_experiment_dfParams.R   # Monte Carlo loop + CPU/RAM monitoring
+│   │   ├── 7_2_init_experiment_dfParams_withoutUncer.R  # Loop without perturbation (predefined configs)
+│   │   ├── 8_reinforcementLearning.R        # REINFORCE agent (Gaussian policy gradient)
+│   │   └── others.R                         # Copies/drafts of functions (not loaded by the pipeline)
+│   └── Storage/                             # Querying and maintaining results
 │       ├── explore_dataBase.R               # read_experiment_inputs / read_experiment_output / read_run_output
-│       ├── manageExperiments.R              # merge, integridad, limpieza y borrado de experimentos
-│       ├── example of use.R                 # Ejemplos de uso de las funciones de Storage
-│       └── run_merge_experiments.R          # Script para fusionar experimentos equivalentes
+│       ├── manageExperiments.R              # Merge, integrity checks, cleaning and deletion of experiments
+│       ├── example of use.R                 # Usage examples for the Storage functions
+│       └── run_merge_experiments.R          # Script to merge equivalent experiments
 │
-├── files/                                   # Plantillas de ModelInterface
-│   ├── allQueries.xml                       # Catálogo completo de queries de GCAM
-│   ├── xmldb_batch.xml                      # Batch file (se reescribe en la preparación)
-│   ├── XMLDBDriver.properties               # Se copia a gcam/exe: BD en memoria + batch queries
-│   └── query.xml, resource_*.xml            # Queries de ejemplo
+├── files/                                   # ModelInterface templates
+│   ├── allQueries.xml                       # Full catalogue of GCAM queries
+│   ├── xmldb_batch.xml                      # Batch file (rewritten during preparation)
+│   ├── XMLDBDriver.properties               # Copied to gcam/exe: in-memory DB + batch queries
+│   └── query.xml, resource_*.xml            # Example queries
 │
-├── Experiments.dvc                          # Datos versionados con DVC (Experiments/, ~300 MB)
-├── gcam_sensitivity.sqlite.dvc              # Catálogo SQLite versionado con DVC
-├── renv.lock, renv/, .Rprofile              # Entorno R reproducible (renv)
-└── GCAM_sensitivity_analysis.Rproj          # Raíz del proyecto para here::here()
+├── Experiments.dvc                          # Data versioned with DVC (Experiments/, ~300 MB)
+├── gcam_sensitivity.sqlite.dvc              # SQLite catalogue versioned with DVC
+├── renv.lock, renv/, .Rprofile              # Reproducible R environment (renv)
+└── GCAM_sensitivity_analysis.Rproj          # Project root for here::here()
 ```
 
-`Experiments/`, `data/`, `gcam_sensitivity.sqlite`, CSV, RDS, etc. están en `.gitignore`: los datos pesados se versionan con **DVC**, no con git.
+`Experiments/`, `data/`, `gcam_sensitivity.sqlite`, CSV and RDS files, etc. are listed in `.gitignore`: the heavy data is versioned with **DVC**, not git.
 
 ---
 
-## 3. Requisitos
+## 3. Requirements
 
-- **R** (renv está configurado con R 4.5 en Windows; en DIPC se ha usado el entorno conda `r44`).
-- **GCAM-Europe** compilado, con `exe/configuration.xml`, `exe/run-gcam.bat` (Windows) y los XML generados en `input/gcamdata/xml/`. La versión se registra automáticamente con `git describe --tags` sobre el repo de GCAM, así que **GCAM debe ser un repositorio git con tags**.
-- **Java** (para ModelInterface / batch queries de GCAM).
-- **DVC** (opcional) para descargar `Experiments/` y `gcam_sensitivity.sqlite`.
-- Ficheros externos al repo, referenciados con rutas relativas:
-  - `../gcam_europe` — instalación de GCAM.
-  - `../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv` — tabla de parámetros (ver §5).
-  - `../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv` — errores del modelo base frente a 2021 (solo para RL / seguimiento de MAE).
+- **R** (renv is set up with R 4.5 on Windows; on DIPC the `r44` conda environment has been used).
+- A built **GCAM-Europe** installation with `exe/configuration.xml`, `exe/run-gcam.bat` (Windows) and the generated XMLs in `input/gcamdata/xml/`. The GCAM version is recorded automatically with `git describe --tags` on the GCAM repo, so **GCAM must be a git repository with tags**.
+- **Java** (for ModelInterface / GCAM batch queries).
+- **DVC** (optional) to fetch `Experiments/` and `gcam_sensitivity.sqlite`.
+- Files outside this repo, referenced by relative paths:
+  - `../gcam_europe`: the GCAM installation.
+  - `../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv`: the parameter table (see §5).
+  - `../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv`: base-model errors against 2021 observations (only needed for RL / MAE tracking).
 
-Instalación del entorno:
+Set up the environment:
 
 ```r
-renv::restore()           # instala las versiones de renv.lock
+renv::restore()           # installs the versions pinned in renv.lock
 ```
 
-`check_packages()` instala además cualquier paquete que falte de: DBI, RSQLite, XML, xml2, uuid, dplyr, arrow, jsonlite, purrr, tibble, stringr (se usan también `here` y `withr`).
+`check_packages()` also installs any missing package among: DBI, RSQLite, XML, xml2, uuid, dplyr, arrow, jsonlite, purrr, tibble, stringr (`here` and `withr` are used as well).
 
 ---
 
-## 4. Cómo lanzar un experimento
+## 4. Running an experiment
 
-**Siempre desde la raíz del repositorio** (las rutas se resuelven con `here::here()` y `getwd()`):
+**Always run from the repository root** (paths are resolved with `here::here()` and `getwd()`):
 
 ```bash
 Rscript runSensAn_allParams_monteCarlo_debug.R NULL _w1
-#                                              │    └── suffix del worker
-#                                              └────── experiment_id (NULL = experimento nuevo)
+#                                              │    └── worker suffix
+#                                              └────── experiment_id (NULL = new experiment)
 ```
 
-Argumentos:
+Arguments:
 
-| Argumento | Significado |
+| Argument | Meaning |
 |---|---|
-| `experiment_id` | `NULL` crea un experimento nuevo (`EXP_xxxxxxxx`). Un id existente **añade runs** a ese experimento (debe existir en el SQLite). |
-| `suffix` | Identificador del worker. Se usa para generar `configuration<suffix>.xml`, `run-gcam<suffix>.bat` y los XML perturbados `<nombre><suffix>.xml`, de modo que varios procesos no sobrescriban los XML originales ni los de otro worker. También nombra los ficheros de monitorización. |
+| `experiment_id` | `NULL` creates a new experiment (`EXP_xxxxxxxx`). An existing id **adds runs** to that experiment (it must exist in the SQLite file). |
+| `suffix` | Worker identifier. Used to generate `configuration<suffix>.xml`, `run-gcam<suffix>.bat` and the perturbed XMLs `<name><suffix>.xml`, so that workers neither overwrite the original XMLs nor each other's. It also names the monitoring files. |
 
-Para paralelizar, se lanza el primer worker con `NULL`, se toma el `EXP_…` creado y se lanzan los demás con ese id y sufijos distintos (`_w2`, `_w3`, …).
+To run in parallel, start the first worker with `NULL`, take the `EXP_…` id it creates, and start the remaining workers with that id and different suffixes (`_w2`, `_w3`, …).
 
-### Los tres lanzadores
+### The three launchers
 
-| Script | Bucle que usa | Estrategia | Uso típico |
+| Script | Loop it uses | Strategy | Typical use |
 |---|---|---|---|
-| `runSensAn_allParams_monteCarlo_debug.R` | `7_2_init_experiment_dfParams.R` | `introduce_heterogeneous_uncertainty_by_type`: cada parámetro recibe un valor **absoluto** independiente ~ U(min, max) según su tipo | Exploración global del espacio paramétrico (Monte Carlo) |
-| `runSensAn_allParams_deltas.R` | `7_1_init_experiment_dfParams.R` | `optimizer = 'rl'`: el agente propone un **delta relativo por tipo de parámetro**; `optimizer = 'random'`: `introduce_heterogeneous_uncertainty_by_delta` | Calibración / búsqueda dirigida que minimiza el MAE |
-| `runSensParam_pretrained.R` | `7_2_init_experiment_dfParams_withoutUncer.R` | Sin perturbación: ejecuta cada `param_config` de un CSV de parámetros ya fijados | Validar en GCAM las configuraciones propuestas por un sustituto (GAM) |
+| `runSensAn_allParams_monteCarlo_debug.R` | `7_2_init_experiment_dfParams.R` | `introduce_heterogeneous_uncertainty_by_type`: each parameter gets an independent **absolute** value ~ U(min, max) by type | Global exploration of the parameter space (Monte Carlo) |
+| `runSensAn_allParams_deltas.R` | `7_1_init_experiment_dfParams.R` | `optimizer = 'rl'`: the agent proposes one **relative delta per parameter type**; `optimizer = 'random'`: `introduce_heterogeneous_uncertainty_by_delta` | Calibration / directed search to minimise MAE |
+| `runSensParam_pretrained.R` | `7_2_init_experiment_dfParams_withoutUncer.R` | No perturbation: runs each `param_config` from a CSV of already-fixed parameters | Checking in GCAM the configurations proposed by a surrogate (GAM) |
 
-Los parámetros del experimento se editan **dentro del propio lanzador** (no por línea de comandos): `gcam_path`, `xml_files`, `regions_of_interest`, `n_iterations`, `queries_of_interest`, `distribution_parameters`, `interested_query_columns`, `df_params_path`, nombre y descripción del experimento, etc.
+The experiment settings are edited **inside the launcher itself**, not on the command line: `gcam_path`, `xml_files`, `regions_of_interest`, `n_iterations`, `queries_of_interest`, `distribution_parameters`, `interested_query_columns`, `df_params_path`, experiment name and description, etc.
 
 ---
 
-## 5. La tabla de parámetros (`df_allParams.csv`)
+## 5. The parameter table (`df_allParams.csv`)
 
-Es la entrada central: **una fila por parámetro perturbable** de los XML de GCAM. Se construye fuera de este repo (en `../Hindcasting/4_SensitivityAnalysis/create_dfParams/`) con las funciones de `3_createDF_paramsXML.R`:
+This is the central input: **one row per perturbable parameter** in GCAM's XMLs. It is built outside this repo (in `../Hindcasting/4_SensitivityAnalysis/create_dfParams/`) with the functions in `3_createDF_paramsXML.R`:
 
-- `st2_extract_logits_anyXML()` → `<logit-exponent>` (con región, supplysector, subsector, nesting-subsector, nivel, `fillout`, año).
+- `st2_extract_logits_anyXML()` → `<logit-exponent>` (with region, supplysector, subsector, nesting-subsector, level, `fillout`, year).
 - `st2_extract_price_elasticity_anyXML()` → `<price-elasticity>`.
-- `st2_extract_satiation_level()` → `<satiation-level>` de edificios, agrupado en `floorspace`, `heating`, `cooling`, `other_services`.
-- `add_occurrence_index()` → añade `tag` y `occ` (qué ocurrencia de esa etiqueta es dentro del fichero).
+- `st2_extract_satiation_level()` → building `<satiation-level>`, grouped into `floorspace`, `heating`, `cooling`, `other_services`.
+- `add_occurrence_index()` → adds `tag` and `occ` (which occurrence of that tag it is within the file).
 
-Columnas que usa el pipeline: `xml_file`, `destination_file`, `type_of_param` (`logit` | `price_elasticity` | `satiation_level`), `param`, `param_default`, `tag`, `occ`, `xpath`, `region`, `year`, `fillout`, `group` (satiation) y, para configuraciones predefinidas, `param_config`.
+Columns used by the pipeline: `xml_file`, `destination_file`, `type_of_param` (`logit` | `price_elasticity` | `satiation_level`), `param`, `param_default`, `tag`, `occ`, `xpath`, `region`, `year`, `fillout`, `group` (satiation) and, for predefined configurations, `param_config`.
 
-`destination_file` se genera con sufijo `_cal.xml`, que el bucle sustituye por `<suffix>.xml` al arrancar.
-
----
-
-## 6. Qué ocurre en cada iteración
-
-1. **Preparación (una vez por worker)**
-   - `set_gcam_paths()` fija rutas globales de GCAM (`exe/`, `configuration.xml`, `gcamdata/xml`, log).
-   - Si no existe `gcam_sensitivity.sqlite`, se crea (`create_database()`).
-   - Si `alreadyPrepeared = F`, `GCAM_preparation()` genera las queries a partir de `files/allQueries.xml`, reescribe `xmldb_batch.xml`, y copia todo a `gcam/exe/batch_queries/` junto con `XMLDBDriver.properties`. Con `T` se asume que ya está hecho.
-   - Si el experimento es nuevo: `write_experiment_info()` (tabla `Experiments`) y `create_experiment_folders()`.
-   - `create_new_config()` crea `configuration<suffix>.xml` apuntando a los XML con sufijo; `create_new_run_gcam()` crea `run-gcam<suffix>.bat`.
-   - `build_xml_cache()` lee una sola vez los XML originales en memoria y localiza la **línea** de cada parámetro. Comprueba que el valor de esa línea coincide con `param_default`; si no, se detiene (señal de que el XML ha cambiado desde que se generó `df_params`).
-
-2. **Bucle (`n_iterations`)**
-   1. Genera `run_id = RUN_xxxxxxxx`.
-   2. **Perturbación** con la estrategia elegida (o propuesta del agente RL).
-   3. **Escritura de XML** con `createNewXml_fast()`, que trabaja sobre líneas de texto (mucho más rápido que reescribir con xml2):
-      - `satiation-level`: se **sustituye** la línea.
-      - `logit-exponent` / `price-elasticity`: se **inserta** una nueva línea con `year="2021"` justo después de la original, de modo que GCAM usa el valor perturbado a partir de 2021.
-   4. **Ejecuta GCAM** (`run_gcam()`; `cmd.exe` en Windows, `bash` en Linux).
-   5. Marca `execution_errors = TRUE` si la palabra "error" aparece en `exe/logs/main_log.txt`.
-   6. Guarda los **inputs** (`save_inputs_parquet()`) y los **outputs** de las batch queries (`save_run_outputs()`, solo las columnas de `interested_query_columns`).
-   7. Registra los ficheros en `Datasets`, borra los CSV intermedios de `data/`, registra la ejecución en `Runs` y actualiza `number_iterations`.
-   8. (Solo `7_1`, si existe el fichero de referencia) calcula el MAE del run, la recompensa y actualiza el agente RL.
+`destination_file` is generated with a `_cal.xml` suffix, which the loop replaces with `<suffix>.xml` at start-up.
 
 ---
 
-## 7. Estrategias de perturbación (`4_introduceUncertainty.R`)
+## 6. What happens in each iteration
 
-| Función | Qué hace |
+1. **Setup (once per worker)**
+   - `set_gcam_paths()` sets global GCAM paths (`exe/`, `configuration.xml`, `gcamdata/xml`, log).
+   - If `gcam_sensitivity.sqlite` does not exist, it is created (`create_database()`).
+   - If `alreadyPrepeared = F`, `GCAM_preparation()` generates the queries from `files/allQueries.xml`, rewrites `xmldb_batch.xml`, and copies everything to `gcam/exe/batch_queries/` together with `XMLDBDriver.properties`. With `T` this is assumed to be done already.
+   - For a new experiment: `write_experiment_info()` (`Experiments` table) and `create_experiment_folders()`.
+   - `create_new_config()` creates `configuration<suffix>.xml` pointing to the suffixed XMLs; `create_new_run_gcam()` creates `run-gcam<suffix>.bat`.
+   - `build_xml_cache()` reads the original XMLs into memory once and locates the **line** of each parameter. It checks that the value on that line matches `param_default`; if not, it stops (a sign that the XML has changed since `df_params` was generated).
+
+2. **Loop (`n_iterations`)**
+   1. Generates `run_id = RUN_xxxxxxxx`.
+   2. **Perturbation** with the chosen strategy (or the RL agent's proposal).
+   3. **XML writing** with `createNewXml_fast()`, which works on text lines (much faster than rewriting with xml2):
+      - `satiation-level`: the line is **replaced**.
+      - `logit-exponent` / `price-elasticity`: a new line with `year="2021"` is **inserted** right after the original, so GCAM uses the perturbed value from 2021 onwards.
+   4. **Runs GCAM** (`run_gcam()`; `cmd.exe` on Windows, `bash` on Linux).
+   5. Sets `execution_errors = TRUE` if the word "error" appears in `exe/logs/main_log.txt`.
+   6. Saves the **inputs** (`save_inputs_parquet()`) and the batch-query **outputs** (`save_run_outputs()`, only the columns listed in `interested_query_columns`).
+   7. Registers the files in `Datasets`, deletes the intermediate CSVs in `data/`, records the run in `Runs` and updates `number_iterations`.
+   8. (Only in `7_1`, if the reference file exists) computes the run's MAE and reward, and updates the RL agent.
+
+---
+
+## 7. Perturbation strategies (`4_introduceUncertainty.R`)
+
+| Function | What it does |
 |---|---|
-| `introduce_heterogeneous_uncertainty_by_type` | Valor **absoluto** independiente por parámetro: `runif(minVal, maxVal)` según `type_of_param`. Es la usada en Monte Carlo. |
-| `introduce_heterogeneous_uncertainty_by_delta` | Un **delta relativo común por tipo**: `param × (1 + δ_tipo)`, re-muestreando δ hasta respetar los signos (logit < 0, elasticidad < 0, saciedad > 0). Requiere `minVal > −1` y los tres tipos en `distribution_parameters`. |
-| `introduce_aditive_uncertainty` | Un único delta para toda la columna, con restricción de signo. |
-| `introduce_aditive_Latin_HyperCube_uncertainty` | Deltas equiespaciados entre `max_val` y `min_val` según la iteración. |
-| `introduce_aditive_heterogeneous_uncertainty_satiation` | Delta independiente por fila; para satiation usa el rango observado en `df_params`. |
-| `introduce_hierarchical_uncertainty` | Factor multiplicativo común ~ U(1 − u, 1 + u). |
+| `introduce_heterogeneous_uncertainty_by_type` | Independent **absolute** value per parameter: `runif(minVal, maxVal)` by `type_of_param`. Used for Monte Carlo. |
+| `introduce_heterogeneous_uncertainty_by_delta` | One **relative delta shared per type**: `param × (1 + δ_type)`, resampling δ until signs are respected (logit < 0, elasticity < 0, satiation > 0). Requires `minVal > −1` and all three types in `distribution_parameters`. |
+| `introduce_aditive_uncertainty` | One delta for the whole column, with a sign constraint. |
+| `introduce_aditive_Latin_HyperCube_uncertainty` | Evenly spaced deltas between `max_val` and `min_val` by iteration. |
+| `introduce_aditive_heterogeneous_uncertainty_satiation` | Independent delta per row; for satiation it uses the range observed in `df_params`. |
+| `introduce_hierarchical_uncertainty` | Common multiplicative factor ~ U(1 − u, 1 + u). |
 
-`distribution_parameters` se pasa como lista por tipo, p. ej.:
+`distribution_parameters` is passed as a list by type, e.g.:
 
 ```r
 distribution_parameters = list(
@@ -177,35 +177,35 @@ distribution_parameters = list(
 )
 ```
 
-Se serializa como JSON en la tabla `Experiments`, así que cada experimento conserva los rangos con que se generó.
+It is serialised as JSON in the `Experiments` table, so each experiment keeps the ranges it was generated with.
 
 ---
 
-## 8. Agente de reinforcement learning (`8_reinforcementLearning.R`)
+## 8. Reinforcement-learning agent (`8_reinforcementLearning.R`)
 
-Planteado como un **bandit continuo**: cada run es un episodio de un paso.
+Formulated as a **continuous bandit**: each run is a one-step episode.
 
-- **Acción**: un vector de deltas relativos, uno por tipo de parámetro en `rl_param_types`. **Actualmente solo `price_elasticity`** (logit y satiation están comentados).
-- **Política**: gaussiana en un espacio no acotado `u ~ N(m, s²)`, transformada con sigmoide al intervalo `[minVal, maxVal]`, por lo que los deltas siempre respetan los límites.
-- **Recompensa**: `log(MAE_ref / MAE_run)` (o relativa), recortada a `[-3, 3]`; `-1` si GCAM falla o no hay filas comparables. `MAE_ref` y `MAE_run` se calculan sobre **las mismas filas** (unión por `region, sector, subsector, output, technology`) con el valor de 2021.
-- **Aprendizaje**: REINFORCE por lotes (`batch_size`), baseline leave-one-out, ventajas normalizadas y Adam sobre `(m, log s)`; `s` decrece hasta `min_sigma`.
-- **Modos**: `train` (explora y aprende), `exploit` (usa la media de la política) y `observe` (con `optimizer = 'random'`: solo registra MAE).
-- **Persistencia**: estado en `Experiments/<EXP>/rl/agent<suffix>.rds` (+ `_history.csv`); se reanuda si existe (`resume = TRUE`). Historial también en la tabla SQLite `RL_History`.
+- **Action**: a vector of relative deltas, one per parameter type in `rl_param_types`. **Currently only `price_elasticity`** (logit and satiation are commented out).
+- **Policy**: Gaussian in an unbounded space `u ~ N(m, s²)`, mapped through a sigmoid to `[minVal, maxVal]`, so deltas always stay within bounds.
+- **Reward**: `log(MAE_ref / MAE_run)` (or relative), clipped to `[-3, 3]`; `-1` if GCAM fails or there are no comparable rows. `MAE_ref` and `MAE_run` are computed on **the same rows** (joined on `region, sector, subsector, output, technology`) using the 2021 value.
+- **Learning**: batched REINFORCE (`batch_size`), leave-one-out baseline, normalised advantages and Adam on `(m, log s)`; `s` decreases down to `min_sigma`.
+- **Modes**: `train` (explores and learns), `exploit` (uses the policy mean) and `observe` (with `optimizer = 'random'`: only records the MAE).
+- **Persistence**: state in `Experiments/<EXP>/rl/agent<suffix>.rds` (+ `_history.csv`); resumed if it exists (`resume = TRUE`). History is also written to the SQLite table `RL_History`.
 
-Con `distribution_parameters$price_elasticity = [0.01, 2]` (lanzador actual), el agente solo explora **aumentos** de la magnitud de las elasticidades (factor 1.01×–3×).
+With `distribution_parameters$price_elasticity = [0.01, 2]` (current launcher), the agent only explores **increases** in elasticity magnitude (factor 1.01×–3×).
 
 ---
 
-## 9. Almacenamiento de resultados
+## 9. Result storage
 
 ### SQLite: `gcam_sensitivity.sqlite`
 
-| Tabla | Una fila por… | Campos principales |
+| Table | One row per… | Main fields |
 |---|---|---|
-| `Experiments` | experimento | `experiment_id`, `project`, `gcam_version`, `name`, `number_iterations`, `description`, `created_at`, `inputs_xml`, `outputs_queries`, `regions`, `perturbation_strategy`, `distribution`, `distribution_parameters` (JSON) |
-| `Runs` | ejecución de GCAM | `run_id`, `experiment_id`, `execution_time` (min), `execution_errors`, `delta`, `delta_logit`, `delta_price_elasticity`, `delta_satiation_level` |
-| `Datasets` | fichero Parquet | `experiment_id`, `run_id`, `dataset_type` (`input`/`output`), `dataset_name`, `filepath`, `size_mb` |
-| `RL_History` | run evaluado por el agente | `run_id`, `worker_suffix`, `step`, `mode`, deltas, `MAE_run`, `MAE_ref`, `n_obs`, `reward`, media y sigma de la política por tipo |
+| `Experiments` | experiment | `experiment_id`, `project`, `gcam_version`, `name`, `number_iterations`, `description`, `created_at`, `inputs_xml`, `outputs_queries`, `regions`, `perturbation_strategy`, `distribution`, `distribution_parameters` (JSON) |
+| `Runs` | GCAM run | `run_id`, `experiment_id`, `execution_time` (min), `execution_errors`, `delta`, `delta_logit`, `delta_price_elasticity`, `delta_satiation_level` |
+| `Datasets` | Parquet file | `experiment_id`, `run_id`, `dataset_type` (`input`/`output`), `dataset_name`, `filepath`, `size_mb` |
+| `RL_History` | run evaluated by the agent | `run_id`, `worker_suffix`, `step`, `mode`, deltas, `MAE_run`, `MAE_ref`, `n_obs`, `reward`, policy mean and sigma by type |
 
 ### Parquet: `Experiments/`
 
@@ -213,24 +213,24 @@ Con `distribution_parameters$price_elasticity = [0.01, 2]` (lanzador actual), el
 Experiments/
 └── EXP_xxxxxxxx/
     ├── inputs/
-    │   └── RUN_yyyyyyyy.parquet          # parámetros usados en el run
+    │   └── RUN_yyyyyyyy.parquet          # parameters used in the run
     ├── outputs/
     │   └── outputs_by_tech/
-    │       └── RUN_yyyyyyyy.parquet      # salida de la query (columnas seleccionadas + run_id)
-    └── rl/                               # solo experimentos con agente
+    │       └── RUN_yyyyyyyy.parquet      # query output (selected columns + run_id)
+    └── rl/                               # only for experiments with the agent
 ```
 
-### Monitorización
+### Monitoring
 
-`7_2_init_experiment_dfParams.R` escribe en `monitoring/`:
-- `steps_<worker>.csv`: inicio/fin, duración, RSS y CPU del proceso R por cada etapa.
-- `iterations_<worker>.csv`: duración y estado de cada iteración.
+`7_2_init_experiment_dfParams.R` writes to `monitoring/`:
+- `steps_<worker>.csv`: start/end, duration, RSS and CPU of the R process for each stage.
+- `iterations_<worker>.csv`: duration and status of each iteration.
 
-Las métricas de RAM/CPU leen `/proc` y solo están disponibles en Linux (en Windows quedan vacías).
+RAM/CPU metrics are read from `/proc` and are only available on Linux (they are left empty on Windows).
 
 ---
 
-## 10. Consultar y mantener los experimentos (`R/Storage/`)
+## 10. Querying and maintaining experiments (`R/Storage/`)
 
 ```r
 library(DBI); library(RSQLite)
@@ -244,56 +244,56 @@ outputs <- read_experiment_output(con, experiment_id = "EXP_xxxxxxxx", query_nam
 one_run <- read_run_output(con, query_name = "outputs_by_tech", run_id = "RUN_yyyyyyyy")
 ```
 
-Mantenimiento (casi todas tienen `dry_run = TRUE` por defecto: primero revisar, luego ejecutar con `FALSE`):
+Maintenance (most functions default to `dry_run = TRUE`: review first, then run with `FALSE`):
 
-| Función | Uso |
+| Function | Purpose |
 |---|---|
-| `check_experiment_integrity()` | Comprueba que los Parquet registrados existen y se pueden leer. |
-| `clean_empty_experiments()` | Elimina experimentos sin runs válidos. |
-| `delete_experiment()` | Borra un experimento del SQLite (y opcionalmente sus ficheros). |
-| `clean_orphan_experiments()` | Detecta/borra carpetas en `Experiments/` sin registro en el SQLite. |
-| `update_number_iterations()` | Recalcula `number_iterations` a partir de `Runs` (útil tras interrumpir un experimento). |
-| `merge_experiments()` | Fusiona experimentos **equivalentes** (misma versión de GCAM, XML, queries, regiones, estrategia y distribución) en uno nuevo. |
+| `check_experiment_integrity()` | Checks that registered Parquet files exist and can be read. |
+| `clean_empty_experiments()` | Removes experiments with no valid runs. |
+| `delete_experiment()` | Deletes an experiment from SQLite (and optionally its files). |
+| `clean_orphan_experiments()` | Finds/deletes folders in `Experiments/` with no record in SQLite. |
+| `update_number_iterations()` | Recomputes `number_iterations` from `Runs` (useful after an interrupted experiment). |
+| `merge_experiments()` | Merges **equivalent** experiments (same GCAM version, XMLs, queries, regions, strategy and distribution) into a new one. |
 
-`R/Storage/example of use.R` contiene ejemplos de todas ellas.
+`R/Storage/example of use.R` has examples for all of them.
 
 ---
 
-## 11. Datos versionados con DVC
+## 11. Data versioned with DVC
 
 ```bash
-dvc pull      # descarga Experiments/ y gcam_sensitivity.sqlite
-# tras nuevos experimentos:
+dvc pull      # fetches Experiments/ and gcam_sensitivity.sqlite
+# after new experiments:
 dvc add Experiments gcam_sensitivity.sqlite
 git add Experiments.dvc gcam_sensitivity.sqlite.dvc
 dvc push
 ```
 
-`.dvc/config` no tiene ningún remoto configurado en este repositorio: hay que añadirlo (`dvc remote add -d …`) antes de `push`/`pull`.
+`.dvc/config` has no remote configured in this repository: add one (`dvc remote add -d …`) before `push`/`pull`.
 
 ---
 
-## 12. Cosas a tener en cuenta
+## 12. Things to be aware of
 
-Detalles del código actual que conviene conocer antes de lanzar o interpretar experimentos:
+Details of the current code worth knowing before running or interpreting experiments:
 
-- **Definiciones duplicadas: la última es la que vale.**
-  - `introduce_heterogeneous_uncertainty_by_type` está definida dos veces en `4_introduceUncertainty.R`. La segunda (la que se usa) muestrea **valores absolutos** también para `satiation_level`; la primera los trataba como **multiplicadores** log-uniformes del valor por defecto, por grupo. Con `satiation_level ∈ [0.001, 3]` absoluto, se ignora la escala original de cada saciedad.
-  - `create_new_run_gcam` está definida dos veces en `0_mainFunctions.R`. La que se usa crea un **`.bat` con ruta fija** `C:/GCAM/Nacho/gcam_europe/exe/`; la versión `.sh` para Linux/HPC queda sobrescrita.
-- **Rutas fijas**: `xmldb_batch.xml` tiene un `outFile` absoluto de Windows (se regenera solo si `alreadyPrepeared = F`), y `runSensParam_pretrained.R` usa rutas `C:/GCAM/Nacho/...`.
-- **Workers en paralelo sobre la misma instalación de GCAM**: el sufijo aísla configuración, `.bat` y XML, pero todos los workers comparten `data/<query>_0.csv` (salida de la batch query), `exe/logs/main_log.txt` y la limpieza de CSV de `data/`. Conviene usar una copia de GCAM (y del directorio de trabajo) por worker o comprobar que no se pisan.
-- **Detección de errores**: `execution_errors` se basa en buscar "error" en el log. Puede dar falsos positivos/negativos; los runs con error **se guardan igualmente**, así que hay que filtrarlos al analizar (y no descartarlos sin más, para evitar sesgo de selección).
-- **Convención de signo**: `rl_evaluate_run()` calcula `error = value_ref − value_run` (observado − modelo), la contraria a `ŷ − y` del documento metodológico. Solo afecta al signo; el MAE no cambia.
-- **Año fijo**: la perturbación inserta valores con `year = 2021` y la evaluación usa la columna `2021`.
-- **`runSensAn_allParams_deltas.R` con `optimizer = 'random'`** fallaría, porque `introduce_heterogeneous_uncertainty_by_delta` exige los tres tipos en `distribution_parameters` y el lanzador solo define `price_elasticity`.
-- **`run_merge_experiments.R`** hace `source('merge_experiments.R')`, que no existe: `merge_experiments()` está en `manageExperiments.R`.
-- **`others.R`** son copias de funciones; no lo carga ningún bucle.
-- `alreadyPrepeared` (sic) es el nombre real del argumento.
+- **Duplicate definitions: the last one wins.**
+  - `introduce_heterogeneous_uncertainty_by_type` is defined twice in `4_introduceUncertainty.R`. The second one (the one actually used) samples **absolute values** for `satiation_level` too; the first one treated them as log-uniform **multipliers** of the default value, by group. With an absolute `satiation_level ∈ [0.001, 3]`, the original scale of each satiation level is ignored.
+  - `create_new_run_gcam` is defined twice in `0_mainFunctions.R`. The one used creates a **`.bat` with a hard-coded path** `C:/GCAM/Nacho/gcam_europe/exe/`; the `.sh` version for Linux/HPC is overridden.
+- **Hard-coded paths**: `xmldb_batch.xml` has an absolute Windows `outFile` (only regenerated when `alreadyPrepeared = F`), and `runSensParam_pretrained.R` uses `C:/GCAM/Nacho/...` paths.
+- **Parallel workers on the same GCAM installation**: the suffix isolates the configuration, `.bat` and XMLs, but all workers share `data/<query>_0.csv` (the batch-query output), `exe/logs/main_log.txt` and the CSV clean-up in `data/`. Use one copy of GCAM (and of the working directory) per worker, or check that they don't overwrite each other.
+- **Error detection**: `execution_errors` is based on searching for "error" in the log. It can give false positives/negatives; runs with errors **are still saved**, so filter them at analysis time (rather than silently dropping them, to avoid selection bias).
+- **Sign convention**: `rl_evaluate_run()` computes `error = value_ref − value_run` (observed − model), the opposite of the `ŷ − y` convention in the methodology document. Only the sign is affected; MAE is unchanged.
+- **Fixed year**: perturbations are inserted with `year = 2021` and evaluation uses the `2021` column.
+- **`runSensAn_allParams_deltas.R` with `optimizer = 'random'`** would fail, because `introduce_heterogeneous_uncertainty_by_delta` requires all three types in `distribution_parameters` and the launcher only defines `price_elasticity`.
+- **`run_merge_experiments.R`** calls `source('merge_experiments.R')`, which does not exist: `merge_experiments()` lives in `manageExperiments.R`.
+- **`others.R`** contains copies of functions; no loop loads it.
+- `alreadyPrepeared` (sic) is the actual argument name.
 
 ---
 
-## 13. Relación con el resto del proyecto
+## 13. How it fits into the wider project
 
-- **Entrada**: la tabla de parámetros y los errores de referencia del hindcasting vienen del repo/carpeta `Hindcasting` (Fases 1–2).
-- **Salida**: los Parquet de inputs/outputs y el catálogo SQLite son la base para el análisis de sensibilidad, PCA, modelos sustitutos (GAM, XGBoost…) y calibración (Fases 3–5).
-- **Bucle cerrado**: las configuraciones propuestas por un sustituto se vuelven a ejecutar en GCAM con `runSensParam_pretrained.R`, de modo que el error que cuenta es siempre el de GCAM y no el predicho por el sustituto.
+- **Input**: the parameter table and the reference hindcasting errors come from the `Hindcasting` repo/folder (Phases 1–2).
+- **Output**: the input/output Parquet files and the SQLite catalogue are the basis for sensitivity analysis, PCA, surrogate models (GAM, XGBoost…) and calibration (Phases 3–5).
+- **Closed loop**: configurations proposed by a surrogate are re-run in GCAM with `runSensParam_pretrained.R`, so the error that counts is always GCAM's, not the one predicted by the surrogate.
