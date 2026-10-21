@@ -68,6 +68,13 @@ set -uo pipefail
 #----- Configuración por defecto (sobrescribible con variables de entorno) -----
 WORKDIR="${WORKDIR:-/scratch/gcamteam/hindcasting/GCAM_sensitivity_analysis}"
 RSCRIPT="${RSCRIPT:-$HOME/.conda/envs/r44/bin/Rscript}"
+
+# Comandos que ejecuta cada job (bootstrap y workers) en el nodo de cómputo
+# antes de lanzar R. No hace falta activar nada en el login. Para no activar
+# nada: ENV_SETUP="" bash launch_gcam_workers.sh ...
+ENV_SETUP="${ENV_SETUP-module load Anaconda3/2020.11
+source \"\$(conda info --base)/etc/profile.d/conda.sh\"
+conda activate r44}"
 R_SCRIPT="${R_SCRIPT:-runSensAn_allParams_deltas.R}"
 
 N_WORKERS="${N_WORKERS:-1000}"
@@ -101,7 +108,7 @@ me()     { echo "${USER:-$(id -un)}"; }
 
 usage() { sed -n '/^# Uso/,/^#====/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; /^====/d'; }
 
-CONFIG_VARS=(WORKDIR RSCRIPT R_SCRIPT N_WORKERS MAX_PARALLEL CHUNK_SIZE QOS PARTITION
+CONFIG_VARS=(WORKDIR RSCRIPT ENV_SETUP R_SCRIPT N_WORKERS MAX_PARALLEL CHUNK_SIZE QOS PARTITION
              ACCOUNT WORKER_TIME WORKER_MEM WORKER_CPUS RELAY_TIME WAIT_FIRST_RUN
              SLOT_POOL SLOT_WAIT_MAX POLL_SECONDS SCRIPT_PATH CAMPAIGN_ID CAMPAIGN_DIR
              JOB_NAME)
@@ -134,6 +141,35 @@ exp_registered() { [[ -d "$WORKDIR/Experiments/$1/inputs" ]]; }
 
 # Al menos un run con outputs guardados en parquet
 exp_has_outputs() { compgen -G "$WORKDIR/Experiments/$1/outputs/*/*.parquet" > /dev/null; }
+
+# Activa el entorno (ENV_SETUP) en el nodo de cómputo y decide qué Rscript usar:
+# el de RSCRIPT si existe; si no, el que haya en el PATH tras activar el entorno.
+setup_env() {
+  if [[ -n "$ENV_SETUP" ]]; then
+    # 'module' no siempre está definido en el shell no interactivo de un job
+    if ! type module > /dev/null 2>&1; then
+      # shellcheck disable=SC1091
+      for f in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+        [[ -f "$f" ]] && { set +u; source "$f" > /dev/null 2>&1; set -u; }
+        type module > /dev/null 2>&1 && break
+      done
+    fi
+    log "Activando entorno:"; sed 's/^/    /' <<< "$ENV_SETUP"
+    set +u   # los scripts de conda/module no son compatibles con 'set -u'
+    eval "$ENV_SETUP"
+    local rc=$?
+    set -u
+    (( rc == 0 )) || log "AVISO: ENV_SETUP terminó con código $rc"
+  fi
+  if [[ ! -x "$RSCRIPT" ]]; then
+    local found; found=$(command -v Rscript || true)
+    [[ -n "$found" ]] || die "No encuentro Rscript: ni $RSCRIPT ni en el PATH tras ENV_SETUP"
+    log "RSCRIPT=$RSCRIPT no existe; uso $found"
+    RSCRIPT=$found
+  fi
+  log "Rscript: $RSCRIPT ($("$RSCRIPT" --version 2>&1 | head -1))"
+  log "CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV:-<ninguno>}"
+}
 
 #===============================================================================
 # Envío de jobs
@@ -312,7 +348,7 @@ role_launcher() {
   [[ -d "$WORKDIR" ]]            || die "No existe WORKDIR: $WORKDIR"
   cd "$WORKDIR"                  || die "No puedo entrar en $WORKDIR"
   [[ -f "$R_SCRIPT" ]]           || die "No existe $WORKDIR/$R_SCRIPT"
-  [[ -x "$RSCRIPT" ]]            || die "No encuentro Rscript ejecutable en $RSCRIPT"
+  [[ -x "$RSCRIPT" ]] || log "AVISO: $RSCRIPT no existe desde el login; se buscará Rscript en los nodos tras ENV_SETUP"
 
   if [[ -n "$EXPERIMENT_ID" ]]; then
     valid_exp_id "$EXPERIMENT_ID" || die "Experiment id no válido: $EXPERIMENT_ID"
@@ -389,6 +425,7 @@ role_launcher() {
 role_bootstrap() {
   load_config
   cd "$WORKDIR" || die "No puedo entrar en $WORKDIR"
+  setup_env
 
   acquire_slot 0
   trap release_slot EXIT
@@ -462,6 +499,7 @@ role_bootstrap() {
 role_worker() {
   load_config
   cd "$WORKDIR" || die "No puedo entrar en $WORKDIR"
+  setup_env
 
   is_int "${GCAM_OFFSET:-}" && is_int "${SLURM_ARRAY_TASK_ID:-}" \
     || die "Faltan GCAM_OFFSET / SLURM_ARRAY_TASK_ID"
