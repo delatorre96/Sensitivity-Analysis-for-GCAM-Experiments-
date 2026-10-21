@@ -128,13 +128,14 @@ read_experiment_output <- function(con,
 }
 
 
-
-
-
 read_run_output <- function(con,
                             query_name,
                             run_id = NULL,
                             execution_errors = NULL) {
+
+  #----- normalizar nombre de la query -----
+
+  query_name <- gsub("\\s+", "_", query_name)
 
   #----- construir consulta SQL -----
 

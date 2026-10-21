@@ -6,7 +6,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                             interested_query_columns = NULL, experiment_id_to_add = NULL, suffix,
                             optimizer = 'rl',            # 'rl': deltas propuestos por el agente; 'random': uncertainty_introduction_function
                             rl_config = list(),          # ver rl_default_config() en 8_reinforcementLearning.R
-                            reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv'){
+                            reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech_withoutNorm.csv'){
 
   optimizer <- match.arg(optimizer, c('rl', 'random'))
 
@@ -35,6 +35,8 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     ref_values <- rl_load_reference(reference_errors_path, regions_of_interest)
     MAE_ref_global <- mean(ref_values$abs_error)
     message('MAE de referencia (todas las filas): ', signif(MAE_ref_global, 5))
+    RMSE_ref_global <- sqrt(mean((ref_values$error)^2))
+    message('RMSE de referencia (todas las filas): ', signif(RMSE_ref_global, 5))
   }
   ############# Reinforcement: referencia #############
 
@@ -193,11 +195,15 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                         ref_values = ref_values)
 
     MAE_run <- evaluation$MAE_run
-    MAE_ref <- evaluation$MAE_ref
+    RMSE_run <- evaluation$RMSE_run
+    evaluation$MAE_ref <- MAE_ref_global
+    evaluation$RMSE_ref <- RMSE_ref_global
+    MAE_ref <- MAE_ref_global
+    RMSE_ref <- RMSE_ref_global
 
-      # refuerzo positivo si MAE_run < MAE_ref, negativo si MAE_run > MAE_ref
+    # refuerzo positivo si MAE_run < MAE_ref, negativo si MAE_run > MAE_ref
     reward <- rl_reward(MAE_run = MAE_run, MAE_ref = MAE_ref,
-                        failed = failed || evaluation$n_obs == 0,
+                        failed = FALSE || evaluation$n_obs == 0,
                         config = agent$config)
 
     agent <- rl_update(agent = agent,
@@ -220,3 +226,4 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   }
 
 }
+

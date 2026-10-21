@@ -106,9 +106,9 @@ experiment_name = 'RL tuning of logits, satiation_level and price_elasticity del
 description = 'Policy-gradient agent proposes one relative delta per parameter class to minimise MAE vs observed 2021'
 perturbation_strategy = 'Reinforcement learning (Gaussian policy gradient over class deltas)'
 distribution = 'uniform'
-distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 4),
-                               'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 2),
-                               'satiation_level' = list('minVal' = 0.01, 'maxVal' = 3))
+distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 0.1),
+                               'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 0.1),
+                               'satiation_level' = list('minVal' = 0.01, 'maxVal' = 0.1))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 uncertainty_introduction_function = 'introduce_heterogeneous_uncertainty_by_delta'
 df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
@@ -117,7 +117,7 @@ paramCol = "param"
 # 'rl': el agente de 8_reinforcementLearning.R propone los deltas
 # 'random': muestreo aleatorio con uncertainty_introduction_function (baseline)
 optimizer = 'rl'
-reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech.csv'
+reference_errors_path = '../Hindcasting/2. Extraction/Data/all_errors_output_by_tech_withoutNorm.csv'
 rl_config = list(
   mode         = 'train',  # 'exploit' para correr con la media de la politica aprendida
   batch_size   = 4,        # runs por actualizacion de la politica

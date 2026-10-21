@@ -7,6 +7,7 @@ check_packages <- function() {
     "xml2",
     "uuid",
     "dplyr",
+    "tidyr",
     "arrow",
     "jsonlite",
     "purrr",

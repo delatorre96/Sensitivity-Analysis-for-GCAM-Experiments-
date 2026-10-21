@@ -69,7 +69,7 @@ rl_load_reference <- function(path, regions_of_interest,
   ref <- ref[, colSums(!is.na(ref)) > 0, drop = FALSE]
   ref <- ref[ref$region %in% regions_of_interest, , drop = FALSE]
 
-  needed <- c(keys, "value_ref", "abs_error")
+  needed <- c(keys, "value_ref", "abs_error", "error")
   missing_cols <- setdiff(needed, names(ref))
   if (length(missing_cols) > 0) {
     stop("El fichero de referencia no tiene las columnas: ",
@@ -101,7 +101,7 @@ rl_evaluate_run <- function(con, run_id, query_name, ref_values, year_col = "202
   keys <- attr(ref_values, "keys")
   if (is.null(keys)) keys <- c("region", "sector", "subsector", "output", "technology")
 
-  df_run <- read_run_output(con = con, query_name = query_name, run_id = run_id)
+  df_run <- read_run_output(con = con, query_name = query_name, run_id = run_id, execution_errors = TRUE)
 
   empty <- list(MAE_run = NA_real_, MAE_ref = NA_real_, n_obs = 0L, df = NULL)
   if (is.null(df_run) || nrow(df_run) == 0 || !(year_col %in% names(df_run))) {
@@ -112,7 +112,7 @@ rl_evaluate_run <- function(con, run_id, query_name, ref_values, year_col = "202
   df_run$value_run <- suppressWarnings(as.numeric(df_run[[year_col]]))
   df_run <- df_run[, c(keys, "value_run")]
 
-  df <- merge(df_run, ref_values, by = keys)
+  df <- merge(df_run, ref_values, by = keys) %>% drop_na()
   df <- df[!is.na(df$value_ref) & !is.na(df$value_run) & !is.na(df$abs_error), ]
 
   if (nrow(df) == 0) return(empty)
@@ -122,7 +122,7 @@ rl_evaluate_run <- function(con, run_id, query_name, ref_values, year_col = "202
 
   list(
     MAE_run = mean(df$error_abs),
-    MAE_ref = mean(df$abs_error),
+    RMSE_run =sqrt(mean((df$error)^2)),
     n_obs   = nrow(df),
     df      = df
   )
