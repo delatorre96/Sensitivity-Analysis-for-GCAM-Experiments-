@@ -45,7 +45,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   df_params <- read.csv(df_params_path) %>%
     mutate(
       destination_file = sub("_cal\\.xml$", paste0(suffix, ".xml"), destination_file)
-    ) %>% filter(priority == 1) %>% select(  "xml_file",
+    ) %>% filter(priority %in% c(1,2,3)) %>% select(  "xml_file",
                                              "destination_file",
                                              "type_of_param",
                                              "tag",

@@ -103,7 +103,7 @@ xml_files = xml_files
 n_iterations = 2
 project = 'Hindcasting'
 
-experiment_name = 'monte carlo relative perturbation: priority 1'
+experiment_name = 'monte carlo relative perturbation: priority 1,2,3'
 
 description = paste(
   'Multiplicative perturbation of each parameter around its calibrated value,',
