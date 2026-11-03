@@ -3,13 +3,13 @@
 # launch_gcam_workers.sh
 #
 # Lanza en Slurm (DIPC) una campaña de sensitivity analysis de GCAM basada en
-# runSensAn_allParams_deltas.R. Se ejecuta con `bash` desde el nodo de login,
+# runSensAn_allParams_deltas_montecarlo.R (configurable con R_SCRIPT=...). Se ejecuta con `bash` desde el nodo de login,
 # NO con `sbatch`: el propio script se encarga de enviar los jobs.
 #
 # Cómo funciona
 # -------------
 # 1. BOOTSTRAP. Un primer job ejecuta
-#        Rscript runSensAn_allParams_deltas.R NULL <suffix>
+#        Rscript $R_SCRIPT NULL <suffix>
 #    lo que crea (si no existen) gcam_sensitivity.sqlite, sus tablas, el
 #    experimento y Experiments/<EXP_ID>/. El bootstrap lee el EXP_ID del log de R
 #    ("Starting experiment: EXP_xxxxxxxx"), espera a que el experimento esté
@@ -19,7 +19,7 @@
 #    campaña y envía los workers.
 #
 # 2. WORKERS. N_WORKERS ejecuciones de
-#        Rscript runSensAn_allParams_deltas.R <EXP_ID> <suffix>
+#        Rscript $R_SCRIPT <EXP_ID> <suffix>
 #    enviadas como job arrays por bloques de CHUNK_SIZE tareas, con como mucho
 #    MAX_PARALLEL tareas a la vez. Cuando un bloque termina, un job "relay"
 #    muy pequeño envía el siguiente. Así nunca hay más de CHUNK_SIZE tareas en
@@ -75,7 +75,7 @@ RSCRIPT="${RSCRIPT:-$HOME/.conda/envs/r44/bin/Rscript}"
 ENV_SETUP="${ENV_SETUP-module load Anaconda3/2020.11
 source \"\$(conda info --base)/etc/profile.d/conda.sh\"
 conda activate r44}"
-R_SCRIPT="${R_SCRIPT:-runSensAn_allParams_deltas.R}"
+R_SCRIPT="${R_SCRIPT:-runSensAn_allParams_deltas_montecarlo.R}"
 
 N_WORKERS="${N_WORKERS:-1000}"
 MAX_PARALLEL="${MAX_PARALLEL:-100}"
@@ -95,6 +95,7 @@ WAIT_FIRST_RUN="${WAIT_FIRST_RUN:-1}"   # 1 = canario: esperar al 1er run del bo
 SLOT_MARGIN="${SLOT_MARGIN:-8}"         # slots extra sobre MAX_PARALLEL
 SLOT_WAIT_MAX="${SLOT_WAIT_MAX:-3600}"  # s máximos esperando un slot libre
 POLL_SECONDS="${POLL_SECONDS:-20}"      # s entre comprobaciones del bootstrap
+SKIP_PREFLIGHT="${SKIP_PREFLIGHT:-0}"   # 1 = no hacer las comprobaciones previas
 
 ROLE="${GCAM_ROLE:-launcher}"
 
@@ -169,6 +170,64 @@ setup_env() {
   fi
   log "Rscript: $RSCRIPT ($("$RSCRIPT" --version 2>&1 | head -1))"
   log "CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV:-<ninguno>}"
+}
+
+# Vuelca al stderr (el .err de Slurm) el final del log de R, para ver el error
+# sin tener que ir a buscarlo.
+show_r_tail() {
+  local rlog=$1 n=${2:-25}
+  [[ -f "$rlog" ]] || return 0
+  {
+    echo "------ últimas $n líneas de $rlog ------"
+    tail -n "$n" "$rlog"
+    echo "----------------------------------------"
+  } >&2
+}
+
+# Valor de una asignación simple  var = 'texto'  (o <-) en el script R
+r_assign() {
+  grep -m1 -E "^[[:space:]]*$1[[:space:]]*(=|<-)[[:space:]]*['\"]" "$R_SCRIPT" | tr -d '\r' \
+    | sed -E "s/^[^=<]*(=|<-)[[:space:]]*['\"]([^'\"]*)['\"].*/\2/"
+}
+
+# Comprobaciones previas en el login (mismo sistema de ficheros que los nodos).
+# No sustituyen al canario del bootstrap: sólo detectan antes lo más evidente.
+preflight() {
+  local errors=() gcam_path df_path run_sh n_bat
+  gcam_path=$(r_assign gcam_path)
+  df_path=$(r_assign df_params_path)
+
+  if [[ -z "$gcam_path" ]]; then
+    log "AVISO: no he podido leer gcam_path de $R_SCRIPT; no compruebo GCAM"
+  elif [[ ! -d "$gcam_path" ]]; then
+    errors+=("No existe gcam_path: $gcam_path")
+  else
+    run_sh="$gcam_path/exe/run-gcam.sh"
+    [[ -f "$gcam_path/exe/configuration.xml" ]] \
+      || errors+=("No existe $gcam_path/exe/configuration.xml")
+    if [[ ! -f "$run_sh" ]]; then
+      errors+=("No existe $run_sh (create_new_run_gcam lo usa como plantilla)")
+    elif ! tr -d '\r' < "$run_sh" | grep -q 'gcam\.exe -C configuration\.xml'; then
+      errors+=("$run_sh no contiene 'gcam.exe -C configuration.xml': run-gcam<suffix>.sh seguiría usando configuration.xml y los runs NO tendrían perturbaciones")
+    fi
+  fi
+
+  if [[ -z "$df_path" ]]; then
+    log "AVISO: no he podido leer df_params_path de $R_SCRIPT"
+  elif [[ ! -f "$df_path" ]]; then
+    errors+=("No existe df_params_path: $df_path")
+  fi
+
+  # Restos de Windows en el código R activo (sin contar comentarios)
+  n_bat=$(cat "$R_SCRIPT" R/Experiment/*.R R/Storage/manageExperiments.R 2>/dev/null \
+          | tr -d '\r' | grep -vE '^[[:space:]]*#' | grep -cE '\.bat\b' || true)
+  (( n_bat > 0 )) && log "AVISO: $n_bat línea(s) activas del código R mencionan ficheros .bat (revisa que no se usen en Linux)"
+
+  if (( ${#errors[@]} > 0 )); then
+    local e; for e in "${errors[@]}"; do log "PREFLIGHT: $e" >&2; done
+    die "Comprobaciones previas fallidas. Corrígelo o relanza con SKIP_PREFLIGHT=1."
+  fi
+  log "Comprobaciones previas OK (gcam_path=$gcam_path, df_params_path=$df_path)"
 }
 
 #===============================================================================
@@ -350,6 +409,8 @@ role_launcher() {
   [[ -f "$R_SCRIPT" ]]           || die "No existe $WORKDIR/$R_SCRIPT"
   [[ -x "$RSCRIPT" ]] || log "AVISO: $RSCRIPT no existe desde el login; se buscará Rscript en los nodos tras ENV_SETUP"
 
+  (( SKIP_PREFLIGHT )) || preflight
+
   if [[ -n "$EXPERIMENT_ID" ]]; then
     valid_exp_id "$EXPERIMENT_ID" || die "Experiment id no válido: $EXPERIMENT_ID"
     exp_registered "$EXPERIMENT_ID" || die "No existe Experiments/$EXPERIMENT_ID/ en $WORKDIR"
@@ -481,6 +542,7 @@ role_bootstrap() {
     "$status" "$start" "$(date '+%F %T')" "$(hostname)" >> "$CAMPAIGN_DIR/results.tsv"
 
   if (( ! ready )); then
+    show_r_tail "$rlog"
     if [[ -z "$exp" ]]; then
       die "R terminó (código $status) sin crear el experimento. Revisa $rlog"
     elif ! exp_registered "$exp"; then
@@ -535,6 +597,7 @@ role_worker() {
     "${SLURM_ARRAY_JOB_ID:-}_${SLURM_ARRAY_TASK_ID}" "$SUFFIX" "$status" "$start" \
     "$(date '+%F %T')" "$(hostname)" >> "$CAMPAIGN_DIR/results.tsv"
 
+  (( status == 0 )) || show_r_tail "$rlog"
   echo "=================================================="
   echo "Worker finished: $label  exit code $status  $(date)"
   echo "=================================================="
