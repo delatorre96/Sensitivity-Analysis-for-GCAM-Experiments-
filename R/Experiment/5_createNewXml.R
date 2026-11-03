@@ -177,6 +177,15 @@ createNewXml_other_params <- function (df_params_copy){
 fmt_num <- function(x) trimws(formatC(x, digits = 8, format = "g"))
 
 write_xml_fast <- function(lines, d, out_file) {
+
+  # Comprobar tipos de parámetro: un tipo no reconocido se ignoraría en silencio
+  known_types <- c("logit", "price_elasticity", "income_elasticity", "satiation_level")
+  unknown <- setdiff(unique(d$type_of_param), known_types)
+  if (length(unknown) > 0) {
+    stop("Tipos de parámetro no reconocidos en write_xml_fast: ",
+         paste(unknown, collapse = ", "))
+  }
+
   new <- lines
   ind <- sub("<.*$", "", lines[d$line])          # sangría original de cada línea
 
@@ -186,19 +195,28 @@ write_xml_fast <- function(lines, d, out_file) {
     new[d$line[s]] <- paste0(ind[s], "<satiation-level>", fmt_num(d$param[s]), "</satiation-level>")
   }
 
-  # logit / price-elasticity: se INSERTA una línea después de la original
+  # logit / price-elasticity / income-elasticity: se INSERTA una línea después de la original
   ins <- character(nrow(d))
+
   l <- d$type_of_param == "logit"
   if (any(l)) {
     ins[l] <- sprintf('%s<logit-exponent fillout="%s" year="%s">%s</logit-exponent>',
                       ind[l], d$fillout[l], d$year[l], fmt_num(d$param[l]))
   }
+
   p <- d$type_of_param == "price_elasticity"
   if (any(p)) {
     ins[p] <- sprintf('%s<price-elasticity year="%s">%s</price-elasticity>',
                       ind[p], d$year[p], fmt_num(d$param[p]))
   }
-  k <- l | p
+
+  ie <- d$type_of_param == "income_elasticity"
+  if (any(ie)) {
+    ins[ie] <- sprintf('%s<income-elasticity year="%s">%s</income-elasticity>',
+                       ind[ie], d$year[ie], fmt_num(d$param[ie]))
+  }
+
+  k <- l | p | ie
   if (any(k)) {
     add <- tapply(ins[k], d$line[k], paste, collapse = "\n")   # por si dos filas apuntan a la misma línea
     pos <- as.integer(names(add))
@@ -212,12 +230,10 @@ write_xml_fast <- function(lines, d, out_file) {
 
 createNewXml_fast <- function(df_params_copy, xml_lines, dir_xml) {
   for (f in unique(df_params_copy$xml_file)) {
-    message("Processing ", f,'..')
+    message("Processing ", f, "..")
     t1 <- Sys.time()
     d  <- df_params_copy[df_params_copy$xml_file == f, ]
     write_xml_fast(xml_lines[[f]], d, file.path(dir_xml, unique(d$destination_file)))
     message("Built in ", round(as.numeric(Sys.time() - t1, units = "secs"), 1), " s")
   }
 }
-
-
