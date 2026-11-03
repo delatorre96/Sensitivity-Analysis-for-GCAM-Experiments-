@@ -253,7 +253,8 @@ st2_extract_income_elasticity_anyXML<- function(xml_file){
 # -----------------------------------------------------------------------------
 tag_of <- c(logit            = "logit-exponent",
             price_elasticity = "price-elasticity",
-            satiation_level  = "satiation-level")
+            satiation_level  = "satiation-level",
+            income_elasticity = "income-elasticity")
 add_occurrence_index <- function(df, dir_xml) {
   df$tag <- unname(tag_of[df$type_of_param])
   df$occ <- NA_integer_

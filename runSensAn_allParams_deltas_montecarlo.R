@@ -103,7 +103,7 @@ xml_files = xml_files
 n_iterations = 400
 project = 'Hindcasting'
 
-experiment_name = 'monte carlo relative perturbation: logits, satiation_level and price_elasticity'
+experiment_name = 'monte carlo relative perturbation: priority 1'
 
 description = paste(
   'Multiplicative perturbation of each parameter around its calibrated value,',
@@ -116,7 +116,8 @@ perturbation_strategy = 'Local relative perturbation around calibrated values'
 distribution = 'uniform'
 distribution_parameters = list('logit' = list('minVal' = -0.4, 'maxVal' = 0.4),
                                'price_elasticity' = list('minVal' = -0.4, 'maxVal' = 0.4),
-                               'satiation_level' = list('minVal' = -0.1, 'maxVal' = 0.1))
+                               'satiation_level' = list('minVal' = -0.1, 'maxVal' = 0.1),
+                               'income_elasticity'= list('minVal' = -0.4, 'maxVal' = 0.4))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 uncertainty_introduction_function = 'introduce_relative_uncertainty_by_type'
 df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams_relevance.csv"

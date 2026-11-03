@@ -500,8 +500,6 @@ introduce_heterogeneous_uncertainty_by_delta <- function(
 
 
 
-
-
 #' Perturba parámetros de GCAM de forma relativa (porcentual) según su tipo
 #'
 #' Cada parámetro se multiplica por (1 + delta), con delta ~ U(minVal, maxVal)
@@ -512,7 +510,8 @@ introduce_heterogeneous_uncertainty_by_delta <- function(
 #' Restricciones de dominio (tras redondear):
 #'   - logit            < 0
 #'   - price_elasticity < 0
-#'   - satiation_level  > 0
+#'   - satiation_level   > 0
+#'   - income_elasticity > 0
 #' Si un valor perturbado se sale del dominio, se vuelve a muestrear su delta
 #' hasta cumplirlo (como máximo `max_tries` veces).
 #'
@@ -565,7 +564,9 @@ introduce_relative_uncertainty_by_type <- function(
 
   #----- Comprobar tipos de parámetro -----
 
-  known_types <- c("logit", "price_elasticity", "satiation_level")
+  known_types <- c(
+    "logit", "price_elasticity", "satiation_level", "income_elasticity"
+  )
 
   if (any(!type %in% known_types)) {
 
@@ -613,7 +614,8 @@ introduce_relative_uncertainty_by_type <- function(
       tp,
       logit            = !is.na(x) & x < 0,
       price_elasticity = !is.na(x) & x < 0,
-      satiation_level  = !is.na(x) & x > 0
+      satiation_level   = !is.na(x) & x > 0,
+      income_elasticity = !is.na(x) & x > 0
     )
   }
 
