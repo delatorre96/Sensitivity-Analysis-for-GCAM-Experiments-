@@ -45,7 +45,19 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
   df_params <- read.csv(df_params_path) %>%
     mutate(
       destination_file = sub("_cal\\.xml$", paste0(suffix, ".xml"), destination_file)
-    ) %>% filter(priority == 1 | priority == 2)
+    ) %>% filter(priority == 1) %>% select(  "xml_file",
+                                             "destination_file",
+                                             "type_of_param",
+                                             "tag",
+                                             "param",
+                                             "occ",
+                                             # Construcción de etiquetas XML
+                                             "fillout",
+
+                                             # Agrupación de satiation_level
+                                             "region",
+                                             "input_type",
+                                             "input_name")
 
   if (is.null(experiment_id_to_add)){
     write_experiment_info(con = con,
