@@ -191,6 +191,62 @@ st2_extract_price_elasticity_anyXML<- function(xml_file){
 }
 
 
+
+
+st2_extract_income_elasticity_anyXML<- function(xml_file){
+
+
+  doc <- read_xml(xml_file)
+
+  prices <- xml_find_all(doc, ".//income-elasticity")
+
+  salida <- vector("list", length(prices))
+
+  for(i in seq_along(prices)){
+
+    income_elasticity <- prices[[i]]
+
+    padres <- xml_parents(income_elasticity)
+
+    region <- NA
+
+    for(p in padres){
+
+      etiqueta <- xml_name(p)
+
+      if(etiqueta == "region"){
+        region <- xml_attr(p,"name")
+      }
+
+    }
+
+    salida[[i]] <- data.frame(
+
+      xml_file = basename(xml_file),
+
+      id = i,
+
+      region = region,
+
+      year = as.numeric(xml_attr(income_elasticity,"year")),
+
+      income_elasticity = as.numeric(xml_text(income_elasticity)),
+
+      xpath = xml_path(income_elasticity),
+
+      stringsAsFactors = FALSE
+
+    )
+
+  }
+
+  do.call(rbind,salida)
+
+}
+
+
+
+
 # -----------------------------------------------------------------------------
 # 2. Índice de aparición: para cada fila, qué número de <tag> es en el fichero.
 #    Se ejecuta UNA vez, en el script que construye df_allParams.
