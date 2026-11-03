@@ -100,18 +100,26 @@ alreadyPrepeared = F
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 2
+n_iterations = 400
 project = 'Hindcasting'
-experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
-description = 'Test different random values per parameter using global parameter-space exploration'
-perturbation_strategy = 'Global parameter-space exploration'
+
+experiment_name = 'monte carlo relative perturbation: logits, satiation_level and price_elasticity'
+
+description = paste(
+  'Multiplicative perturbation of each parameter around its calibrated value,',
+  'value * (1 + delta) with delta ~ U(minVal, maxVal) per parameter type.',
+  'Sign constraints enforced by rejection resampling (logit < 0, price_elasticity < 0, satiation_level > 0).',
+  'Satiation levels share a single delta across consumer deciles (d1-d10) within each region, input_type and service.'
+)
+
+perturbation_strategy = 'Local relative perturbation around calibrated values'
 distribution = 'uniform'
-distribution_parameters = list('logit' = list('minVal' = 0.01, 'maxVal' = 0.2),
-                               'price_elasticity' = list('minVal' = 0.01, 'maxVal' = 0.2),
-                               'satiation_level' = list('minVal' = 0.01, 'maxVal' = 0.2))
+distribution_parameters = list('logit' = list('minVal' = -0.4, 'maxVal' = 0.4),
+                               'price_elasticity' = list('minVal' = -0.4, 'maxVal' = 0.4),
+                               'satiation_level' = list('minVal' = -0.1, 'maxVal' = 0.1))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
-uncertainty_introduction_function = 'introduce_heterogeneous_uncertainty_by_delta'
-df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
+uncertainty_introduction_function = 'introduce_relative_uncertainty_by_type'
+df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams_relevance.csv"
 paramCol = "param"
 
 

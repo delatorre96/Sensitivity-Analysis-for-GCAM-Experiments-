@@ -77,7 +77,9 @@ write_run_info <- function(con,
                            delta = NULL) {
 
   #----- preparar deltas -----
-
+  if (is.vector(typeof(delta))){
+    delta = NULL
+  }
   delta_logit <- NA_real_
   delta_price_elasticity <- NA_real_
   delta_satiation_level <- NA_real_
