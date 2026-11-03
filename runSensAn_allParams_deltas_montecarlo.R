@@ -1,4 +1,4 @@
-source("R/Experiment/7_2_init_experiment_dfParams.R")
+source("R/Experiment/7_1_init_experiment_dfParams.R")
 
 #----- Arguments from command line -----
 
@@ -96,22 +96,30 @@ regions_eur <- c(
 
 
 gcam_path = '../gcam_europe'
-alreadyPrepeared = T
+alreadyPrepeared = F
 queries_of_interest = 'outputs by tech'
 regions_of_interest = regions_eur
 xml_files = xml_files
-n_iterations = 110
+n_iterations = 400
 project = 'Hindcasting'
-experiment_name = 'monte carlo logits, satiation_level and price_elasticity'
-description = 'Test different random values per parameter using global parameter-space exploration'
-perturbation_strategy = 'Global parameter-space exploration'
+
+experiment_name = 'monte carlo relative perturbation: logits, satiation_level and price_elasticity'
+
+description = paste(
+  'Multiplicative perturbation of each parameter around its calibrated value,',
+  'value * (1 + delta) with delta ~ U(minVal, maxVal) per parameter type.',
+  'Sign constraints enforced by rejection resampling (logit < 0, price_elasticity < 0, satiation_level > 0).',
+  'Satiation levels share a single delta across consumer deciles (d1-d10) within each region, input_type and service.'
+)
+
+perturbation_strategy = 'Local relative perturbation around calibrated values'
 distribution = 'uniform'
-distribution_parameters = list('logit' = list('minVal' = -20, 'maxVal' = -0.01),
-                               'price_elasticity' = list('minVal' = -1.5, 'maxVal' = -0.01),
-                               'satiation_level' = list('minVal' = 0.001, 'maxVal' = 3))
+distribution_parameters = list('logit' = list('minVal' = -0.4, 'maxVal' = 0.4),
+                               'price_elasticity' = list('minVal' = -0.4, 'maxVal' = 0.4),
+                               'satiation_level' = list('minVal' = -0.1, 'maxVal' = 0.1))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
-uncertainty_introduction_function = 'introduce_heterogeneous_uncertainty_by_type'
-df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
+uncertainty_introduction_function = 'introduce_relative_uncertainty_by_type'
+df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams_relevance.csv"
 paramCol = "param"
 
 
@@ -120,6 +128,7 @@ init_experiment(gcam_path, alreadyPrepeared , queries_of_interest, regions_of_in
                 uncertainty_introduction_function, df_params_path, paramCol,
                 perturbation_strategy, distribution, distribution_parameters,
                 interested_query_columns, experiment_id_to_add, suffix)
+
 
 
 
