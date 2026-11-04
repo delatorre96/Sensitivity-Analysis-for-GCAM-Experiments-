@@ -14,8 +14,8 @@
 #    experimento y Experiments/<EXP_ID>/. El bootstrap lee el EXP_ID del log de R
 #    ("Starting experiment: EXP_xxxxxxxx"), espera a que el experimento esté
 #    registrado (aparece Experiments/<EXP_ID>/) y, por defecto, a que su
-#    primer run de GCAM haya guardado outputs (canario: si GCAM está roto no se
-#    lanzan miles de workers). Entonces guarda el EXP_ID en la carpeta de la
+#    primer run de GCAM termine con código 0 y haya guardado outputs (canario:
+#    si GCAM está roto no se lanzan miles de workers). Entonces guarda el EXP_ID en la carpeta de la
 #    campaña y envía los workers.
 #
 # 2. WORKERS. N_WORKERS ejecuciones de
@@ -44,7 +44,7 @@
 #     -c N    tamaño de cada job array (bloque)                      [1000]
 #     -e ID   añadir a un experimento ya existente (sin bootstrap)
 #     -t T    time limit por worker (formato Slurm)                  [1-00:00:00]
-#     -m M    memoria por worker                                     [32G]
+#     -m M    memoria por worker                                     [64G]
 #     -q Q    QOS                                                    [regular]
 #     -N      no esperar al primer run del bootstrap (sin canario)
 #     -h      ayuda
@@ -86,7 +86,7 @@ QOS="${QOS:-regular}"
 PARTITION="${PARTITION:-}"
 ACCOUNT="${ACCOUNT:-}"
 WORKER_TIME="${WORKER_TIME:-1-00:00:00}"
-WORKER_MEM="${WORKER_MEM:-32G}"
+WORKER_MEM="${WORKER_MEM:-64G}"   # con 32G GCAM-Europe muere al volcar la XMLDB en memoria (OOM)
 WORKER_CPUS="${WORKER_CPUS:-1}"
 RELAY_TIME="${RELAY_TIME:-00:15:00}"
 
@@ -142,6 +142,14 @@ exp_registered() { [[ -d "$WORKDIR/Experiments/$1/inputs" ]]; }
 
 # Al menos un run con outputs guardados en parquet
 exp_has_outputs() { compgen -G "$WORKDIR/Experiments/$1/outputs/*/*.parquet" > /dev/null; }
+
+# Códigos de salida de GCAM que el R escribe en su log con run_gcam():
+#   "GCAM terminó con código de salida N"
+# (el R no los usa para nada, así que los vigila el lanzador)
+GCAM_RC_REGEX='GCAM termin.{1,3} con c.{1,3}digo de salida -?[0-9]+'
+gcam_exit_codes() { grep -aoE "$GCAM_RC_REGEX" "$1" 2>/dev/null | grep -oE -- '-?[0-9]+$'; }
+first_gcam_rc()   { gcam_exit_codes "$1" | head -n 1; }
+n_gcam_failed()   { gcam_exit_codes "$1" | grep -cvx 0 || true; }
 
 # Activa el entorno (ENV_SETUP) en el nodo de cómputo y decide qué Rscript usar:
 # el de RSCRIPT si existe; si no, el que haya en el PATH tras activar el entorno.
@@ -434,7 +442,7 @@ role_launcher() {
   JOB_NAME="${JOB_PREFIX}_${CAMPAIGN_ID}"
   [[ -e "$CAMPAIGN_DIR" ]] && die "Ya existe $CAMPAIGN_DIR (espera un segundo y relanza)"
   mkdir -p "$CAMPAIGN_DIR/logs/slurm" "$CAMPAIGN_DIR/logs/r" || die "No puedo crear $CAMPAIGN_DIR"
-  printf 'index\tjob\tsuffix\texit_code\tstart\tend\tnode\n' > "$CAMPAIGN_DIR/results.tsv"
+  printf 'index\tjob\tsuffix\texit_code\tstart\tend\tnode\tgcam_runs\tgcam_failed\n' > "$CAMPAIGN_DIR/results.tsv"
   save_config
 
   local iters boot=0
@@ -506,10 +514,11 @@ role_bootstrap() {
   "$RSCRIPT" "$R_SCRIPT" NULL "$SUFFIX" > "$rlog" 2>&1 &
   local rpid=$! exp="" ready=0 submitted=0
 
+  local rc1="" canary_failed=0
   is_ready() {
     [[ -n "$exp" ]] && exp_registered "$exp" || return 1
     (( WAIT_FIRST_RUN )) || return 0
-    exp_has_outputs "$exp"
+    [[ "$rc1" == 0 ]] && exp_has_outputs "$exp"
   }
 
   while :; do
@@ -517,6 +526,16 @@ role_bootstrap() {
       exp=$(grep -m1 -oE 'Starting experiment: EXP_[0-9A-Za-z]+' "$rlog" 2>/dev/null \
             | awk '{print $3}')
       [[ -n "$exp" ]] && log "Experiment id detectado en el log de R: $exp"
+    fi
+    if [[ -z "$rc1" ]]; then
+      rc1=$(first_gcam_rc "$rlog")
+      [[ -n "$rc1" ]] && log "Primer run de GCAM terminado con código $rc1"
+    fi
+    if (( WAIT_FIRST_RUN )) && [[ -n "$rc1" && "$rc1" != 0 ]]; then
+      canary_failed=1
+      log "Canario fallido: GCAM salió con código $rc1 (137 = matado, normalmente por memoria). Paro R."
+      kill -TERM "$rpid" 2>/dev/null
+      break
     fi
     if is_ready; then ready=1; break; fi
     kill -0 "$rpid" 2>/dev/null || break   # R terminó
@@ -537,13 +556,23 @@ role_bootstrap() {
 
   wait "$rpid"
   local status=$?
+  local n_runs n_bad
+  n_runs=$(gcam_exit_codes "$rlog" | wc -l)
+  n_bad=$(n_gcam_failed "$rlog")
+  if (( n_bad > 0 )); then
+    log "AVISO: $n_bad de $n_runs runs de GCAM del bootstrap terminaron con código != 0"
+    (( status == 0 )) && status=3
+  fi
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "bootstrap" "${SLURM_JOB_ID:-}" "$SUFFIX" \
-    "$status" "$start" "$(date '+%F %T')" "$(hostname)" >> "$CAMPAIGN_DIR/results.tsv"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "bootstrap" "${SLURM_JOB_ID:-}" "$SUFFIX" \
+    "$status" "$start" "$(date '+%F %T')" "$(hostname)" "$n_runs" "$n_bad" >> "$CAMPAIGN_DIR/results.tsv"
 
   if (( ! ready )); then
     show_r_tail "$rlog"
-    if [[ -z "$exp" ]]; then
+    if (( canary_failed )); then
+      [[ -n "$exp" ]] && echo "$exp" > "$CAMPAIGN_DIR/experiment_id"
+      die "El primer run de GCAM falló (código $rc1). No se lanzan workers. Si es 137, sube la memoria (-m)."
+    elif [[ -z "$exp" ]]; then
       die "R terminó (código $status) sin crear el experimento. Revisa $rlog"
     elif ! exp_registered "$exp"; then
       die "R terminó (código $status) sin registrar $exp. Revisa $rlog"
@@ -593,9 +622,19 @@ role_worker() {
   wait $!
   local status=$?
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" \
+  # El R guarda resultados aunque GCAM falle: si algún run de GCAM salió con
+  # código != 0, el worker se marca como fallido.
+  local n_runs n_bad
+  n_runs=$(gcam_exit_codes "$rlog" | wc -l)
+  n_bad=$(n_gcam_failed "$rlog")
+  if (( n_bad > 0 )); then
+    log "AVISO: $n_bad de $n_runs runs de GCAM terminaron con código != 0 (137 = memoria)" >&2
+    (( status == 0 )) && status=3
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" \
     "${SLURM_ARRAY_JOB_ID:-}_${SLURM_ARRAY_TASK_ID}" "$SUFFIX" "$status" "$start" \
-    "$(date '+%F %T')" "$(hostname)" >> "$CAMPAIGN_DIR/results.tsv"
+    "$(date '+%F %T')" "$(hostname)" "$n_runs" "$n_bad" >> "$CAMPAIGN_DIR/results.tsv"
 
   (( status == 0 )) || show_r_tail "$rlog"
   echo "=================================================="
@@ -629,8 +668,9 @@ role_status() {
     | awk '{printf "  %-12s %s\n", $2, $1}'
 
   echo; echo "Workers terminados:"
-  awk -F'\t' 'NR > 1 { n++; if ($4 == 0) ok++; else ko++ }
-              END { printf "  %d (OK: %d, con error: %d)\n", n, ok, ko }' "$CAMPAIGN_DIR/results.tsv"
+  awk -F'\t' 'NR > 1 { n++; if ($4 == 0) ok++; else ko++; gr += $8; gf += $9 }
+              END { printf "  %d (OK: %d, con error: %d)\n", n, ok, ko
+                    printf "  Runs de GCAM: %d (fallidos: %d)\n", gr, gf }' "$CAMPAIGN_DIR/results.tsv"
 
   if valid_exp_id "$exp" && [[ -d "$WORKDIR/Experiments/$exp/inputs" ]]; then
     echo; echo "Runs guardados en Experiments/$exp/inputs (todas las campañas del experimento):"
