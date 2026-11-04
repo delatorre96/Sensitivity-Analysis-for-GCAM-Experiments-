@@ -384,7 +384,14 @@ release_slot() {
 #----- Nodo de login: prepara la campaña y envía el bootstrap (o los workers) ---
 role_launcher() {
   if [[ -n "${SLURM_JOB_ID:-}" ]]; then
-    die "Ejecuta este script con 'bash launch_gcam_workers.sh', no con sbatch."
+    # Con sbatch, Slurm ejecuta una copia llamada .../slurm_script: no sirve,
+    # porque el script tiene que reenviarse a sí mismo desde su ruta real.
+    if [[ "$(basename "${BASH_SOURCE[0]}")" == slurm_script ]]; then
+      die "Ejecuta este script con 'bash launch_gcam_workers.sh', no con sbatch."
+    fi
+    # Dentro de un salloc/srun interactivo funciona: los jobs se envían limpios
+    # (sin las variables SLURM_* de esta asignación) y no dependen de ella.
+    log "AVISO: estás dentro de la asignación $SLURM_JOB_ID (salloc). No hace falta: puedes cerrarla cuando acabe este comando."
   fi
 
   local no_canary=0
