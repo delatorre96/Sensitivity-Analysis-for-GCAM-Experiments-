@@ -225,7 +225,59 @@ st2_change_xmldb_batch <- function(
 }
 
 
-GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query){
+# -----------------------------------------------------------------------------
+# Filtro STX de la salida de GCAM hacia la XML database
+#
+# GCAM pasa el escenario entero por files/xmldb_filter.stx antes de escribirlo
+# en la base de datos en memoria, así que Java solo carga lo que lee la query
+# "outputs by tech" (region/sector/subsector/technology/output/physical-output).
+# Sin filtro, el volcado lleva el proceso de ~7-9 GB a ~31 GB.
+#
+# Se configura en la COPIA de XMLDBDriver.properties que hay en exe_dir: el
+# fichero de files/ queda como plantilla y no se modifica.
+#   use_filter = TRUE  -> copia xmldb_filter.stx a exe_dir y activa filter-script
+#   use_filter = FALSE -> deja filter-script vacío (salida completa)
+# La ruta del filtro es relativa a exe_dir, desde donde se ejecuta GCAM.
+# -----------------------------------------------------------------------------
+configure_xmldb_filter <- function(exe_dir, use_filter = TRUE,
+                                   filter_file = "xmldb_filter.stx") {
+
+  props_file <- file.path(exe_dir, "XMLDBDriver.properties")
+  if (!file.exists(props_file)) {
+    stop("No existe ", props_file, ": no se puede configurar el filtro de la XML database.")
+  }
+
+  if (use_filter) {
+    src <- file.path(thisScript_path, "files", filter_file)
+    if (!file.exists(src)) {
+      stop("No existe ", src, ". Hace falta para filtrar la salida de GCAM ",
+           "(o llama a GCAM_preparation con use_xmldb_filter = FALSE).")
+    }
+    if (!file.copy(src, exe_dir, overwrite = TRUE)) {
+      stop("No se pudo copiar ", src, " a ", exe_dir)
+    }
+  }
+
+  props <- readLines(props_file, warn = FALSE)
+  pattern <- '<entry key="filter-script">[^<]*</entry>'
+  hits <- grep(pattern, props)
+  if (length(hits) != 1) {
+    stop("No encuentro una única entrada filter-script en ", props_file)
+  }
+  value <- if (use_filter) filter_file else ""
+  props[hits] <- sub(pattern,
+                     paste0('<entry key="filter-script">', value, '</entry>'),
+                     props[hits])
+  writeLines(props, props_file)
+
+  message(if (use_filter) paste0("Filtro de la XML database ACTIVADO: ", file.path(exe_dir, filter_file))
+          else "Filtro de la XML database DESACTIVADO (salida completa de GCAM)")
+  invisible(props_file)
+}
+
+
+GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query,
+                             use_xmldb_filter = TRUE){
 
 
   if (!dir.exists(file.path("data"))) {
@@ -235,6 +287,9 @@ GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query){
 
   file.copy(from = paste0(thisScript_path,'/files/XMLDBDriver.properties'), to = exe_dir,
             overwrite = TRUE)
+
+  # Filtro STX de la salida de GCAM (reduce mucho la memoria del volcado final)
+  configure_xmldb_filter(exe_dir, use_filter = use_xmldb_filter)
 
   path <- file.path(exe_dir, "batch_queries")
 
