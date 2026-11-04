@@ -103,10 +103,29 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
 
     createNewXml_fast(res$df_params_copy, xml_lines, dir_xml)
 
+    # Borrar los CSV de este worker antes de ejecutar GCAM: si GCAM no llega a
+    # escribirlos, no se puede guardar por error el resultado de un run anterior
+    delete_iteration_csvs(suffix = suffix)
+
     message("Running GCAM...")
 
-    run_gcam(run_gcam_file_cal)
-    executionErrors <- any(grepl("error", readLines(log_gcam), ignore.case = TRUE))
+    gcam_status <- run_gcam(run_gcam_file_cal)
+
+    # Si GCAM falla o no escribe los CSV de las queries, no se guarda nada de
+    # este run (ni inputs, ni outputs, ni registro en la base de datos)
+    expected_csvs <- file.path(here::here("data"),
+                               paste0(gsub("\\s+", "_", queries_of_interest), suffix, "_0.csv"))
+    missing_csvs <- expected_csvs[!file.exists(expected_csvs)]
+    if (gcam_status != 0 || length(missing_csvs) > 0) {
+      message("RUN DESCARTADO ", run_id, ": GCAM salió con código ", gcam_status,
+              if (length(missing_csvs) > 0)
+                paste0(" y faltan los CSV: ", paste(basename(missing_csvs), collapse = ", ")),
+              ". No se guarda nada de este run.")
+      next
+    }
+
+    executionErrors <- file.exists(log_gcam) &&
+      any(grepl("error", readLines(log_gcam), ignore.case = TRUE))
 
     message('Saving results....')
     df_params_copy <- res$df_params_copy
@@ -118,7 +137,8 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
     df_info_outputs <- save_run_outputs(experiment_id = experiment_id,
                                         run_id = run_id,
                                         queries_of_interest = queries_of_interest,
-                                        interested_query_columns = interested_query_columns)
+                                        interested_query_columns = interested_query_columns,
+                                        suffix = suffix)
     datasets = rbind(df_info_inputs,
                      df_info_outputs)
 
@@ -126,7 +146,7 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                         datasets = datasets)
 
 
-    delete_iteration_csvs()
+    delete_iteration_csvs(suffix = suffix)
 
 
 

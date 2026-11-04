@@ -200,7 +200,8 @@ save_run_outputs <- function(
     queries_of_interest,
     gcam_output_dir = here::here("data"),
     database_dir = here::here("Experiments"),
-    interested_query_columns = NULL
+    interested_query_columns = NULL,
+    suffix = get0("suffix", envir = globalenv(), ifnotfound = "")
 ) {
 
   #Format object interested_query_columns
@@ -238,7 +239,7 @@ save_run_outputs <- function(
 
   source_files <- list.files(
     gcam_output_dir,
-    pattern = "_0\\.csv$",
+    pattern = paste0(regex_escape(suffix), "_0\\.csv$"),   # solo los CSV de este worker
     full.names = TRUE
   )
 
@@ -323,7 +324,7 @@ save_run_outputs <- function(
     ##------------------------------------------------------------
 
     query_name <- sub(
-      "_0\\.csv$",
+      paste0(regex_escape(suffix), "_0\\.csv$"),
       "",
       basename(source_file)
     )
@@ -430,11 +431,19 @@ write_datasets_info <- function(
 
 
 
-delete_iteration_csvs <- function(data_dir = here::here()) {
+# Escapa los caracteres especiales de una expresión regular
+regex_escape <- function(x) gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", x)
+
+
+# Borra los CSV de salida de ESTE worker (data/<query><suffix>_0.csv).
+# Se llama antes de cada run (para no poder guardar por error el CSV de un
+# run anterior si GCAM no llega a escribir el suyo) y después de guardarlo.
+delete_iteration_csvs <- function(data_dir = here::here("data"),
+                                  suffix = get0("suffix", envir = globalenv(), ifnotfound = "")) {
 
   files <- list.files(
     data_dir,
-    pattern = "0\\.csv$",
+    pattern = paste0(regex_escape(suffix), "_0\\.csv$"),
     full.names = TRUE
   )
 

@@ -28,7 +28,8 @@ st1_get_all_queries <- function(print_queries = F){
 
 st2_create_query_xml <- function(query_title,
                              regions = NULL,
-                             df_queries) {
+                             df_queries,
+                             output_dir = "files") {
 
   ## Buscar la query
   idx <- match(query_title, df_queries$title)
@@ -99,10 +100,10 @@ st2_create_query_xml <- function(query_title,
     '</queries>\n'
   )
 
-  output_file <- paste0('files/',
+  output_file <- file.path(output_dir, paste0(
     gsub("\\s+", "_", query_title),
     ".xml"
-  )
+  ))
 
   writeLines(xml_text, output_file)
 
@@ -114,7 +115,10 @@ st2_create_query_xml <- function(query_title,
 st2_change_xmldb_batch <- function(
     queries_of_interest,
     regions_per_query = NULL,
-    xmldb_batch_file = file.path(thisScript_path, "files", "xmldb_batch.xml")
+    xmldb_batch_file = file.path(thisScript_path, "files", "xmldb_batch.xml"),
+    out_file = xmldb_batch_file,   # dónde escribir el batch (por defecto, sobre la plantilla)
+    suffix = "",                   # se añade al CSV de salida: <query><suffix>_0.csv
+    query_dir = "files"            # dónde escribir los XML de cada query
 ) {
 
 
@@ -163,7 +167,7 @@ st2_change_xmldb_batch <- function(
       file.path(
         thisScript_path,
         "data",
-        paste0(query_name, "_0.csv")
+        paste0(query_name, suffix, "_0.csv")
       )
     )
 
@@ -202,26 +206,29 @@ st2_change_xmldb_batch <- function(
     st2_create_query_xml(
       query_title = query_title,
       df_queries = df_queries,
-      regions = NULL)
+      regions = NULL,
+      output_dir = query_dir)
     }
     else if (is.vector(regions_per_query)){
       st2_create_query_xml(
         query_title = query_title,
         df_queries = df_queries,
-        regions = regions_per_query)
+        regions = regions_per_query,
+        output_dir = query_dir)
     }else{
       st2_create_query_xml(
         query_title = query_title,
         df_queries = df_queries,
-        regions = regions_per_query[[query_title]])
+        regions = regions_per_query[[query_title]],
+        output_dir = query_dir)
     }
 
   }
 
   # Guardar el XML actualizado
-  write_xml(doc, xmldb_batch_file)
+  write_xml(doc, out_file)
 
-  invisible(xmldb_batch_file)
+  invisible(out_file)
 }
 
 
@@ -233,16 +240,17 @@ st2_change_xmldb_batch <- function(
 # "outputs by tech" (region/sector/subsector/technology/output/physical-output).
 # Sin filtro, el volcado lleva el proceso de ~7-9 GB a ~31 GB.
 #
-# Se configura en la COPIA de XMLDBDriver.properties que hay en exe_dir: el
-# fichero de files/ queda como plantilla y no se modifica.
-#   use_filter = TRUE  -> copia xmldb_filter.stx a exe_dir y activa filter-script
+# Se configura en la COPIA de XMLDBDriver.properties que hay en el directorio
+# desde el que se ejecuta GCAM (worker_dir): el fichero de files/ queda como
+# plantilla y no se modifica.
+#   use_filter = TRUE  -> copia xmldb_filter.stx allí y activa filter-script
 #   use_filter = FALSE -> deja filter-script vacío (salida completa)
-# La ruta del filtro es relativa a exe_dir, desde donde se ejecuta GCAM.
+# La ruta del filtro es relativa a ese directorio.
 # -----------------------------------------------------------------------------
-configure_xmldb_filter <- function(exe_dir, use_filter = TRUE,
+configure_xmldb_filter <- function(gcam_run_dir, use_filter = TRUE,
                                    filter_file = "xmldb_filter.stx") {
 
-  props_file <- file.path(exe_dir, "XMLDBDriver.properties")
+  props_file <- file.path(gcam_run_dir, "XMLDBDriver.properties")
   if (!file.exists(props_file)) {
     stop("No existe ", props_file, ": no se puede configurar el filtro de la XML database.")
   }
@@ -253,8 +261,8 @@ configure_xmldb_filter <- function(exe_dir, use_filter = TRUE,
       stop("No existe ", src, ". Hace falta para filtrar la salida de GCAM ",
            "(o llama a GCAM_preparation con use_xmldb_filter = FALSE).")
     }
-    if (!file.copy(src, exe_dir, overwrite = TRUE)) {
-      stop("No se pudo copiar ", src, " a ", exe_dir)
+    if (!file.copy(src, gcam_run_dir, overwrite = TRUE)) {
+      stop("No se pudo copiar ", src, " a ", gcam_run_dir)
     }
   }
 
@@ -270,7 +278,7 @@ configure_xmldb_filter <- function(exe_dir, use_filter = TRUE,
                      props[hits])
   writeLines(props, props_file)
 
-  message(if (use_filter) paste0("Filtro de la XML database ACTIVADO: ", file.path(exe_dir, filter_file))
+  message(if (use_filter) paste0("Filtro de la XML database ACTIVADO: ", file.path(gcam_run_dir, filter_file))
           else "Filtro de la XML database DESACTIVADO (salida completa de GCAM)")
   invisible(props_file)
 }
@@ -279,34 +287,41 @@ configure_xmldb_filter <- function(exe_dir, use_filter = TRUE,
 GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query,
                              use_xmldb_filter = TRUE){
 
+  # Prepara el directorio propio del worker (worker_dir = gcam_path/exe<suffix>,
+  # ver set_gcam_paths). GCAM busca XMLDBDriver.properties en el directorio
+  # desde el que se ejecuta, así que cada worker tiene el suyo, con su batch
+  # de queries y su CSV de salida: data/<query><suffix>_0.csv. Ni exe/ ni los
+  # ficheros de files/ se modifican, de modo que los workers no se pisan.
+
+  if (normalizePath(worker_dir, mustWork = FALSE) == normalizePath(exe_dir, mustWork = FALSE)) {
+    stop("worker_dir no puede ser exe/: hace falta un suffix no vacío.")
+  }
 
   if (!dir.exists(file.path("data"))) {
     dir.create('data', recursive = TRUE)
   }
-  st2_change_xmldb_batch(queries_of_interest, regions_per_query)
 
-  file.copy(from = paste0(thisScript_path,'/files/XMLDBDriver.properties'), to = exe_dir,
-            overwrite = TRUE)
+  batch_dir <- file.path(worker_dir, "batch_queries")
+  if (dir.exists(batch_dir)) {
+    unlink(list.files(batch_dir, full.names = TRUE), recursive = TRUE, force = TRUE)
+  }
+  dir.create(batch_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(worker_dir, "logs"), recursive = TRUE, showWarnings = FALSE)
+
+  # Batch de queries del worker (a partir de la plantilla files/xmldb_batch.xml)
+  st2_change_xmldb_batch(queries_of_interest, regions_per_query,
+                         out_file  = file.path(batch_dir, "xmldb_batch.xml"),
+                         suffix    = suffix,
+                         query_dir = batch_dir)
+
+  # XMLDBDriver.properties del worker (sus rutas son relativas a worker_dir)
+  if (!file.copy(from = file.path(thisScript_path, 'files', 'XMLDBDriver.properties'),
+                 to = worker_dir, overwrite = TRUE)) {
+    stop("No se pudo copiar XMLDBDriver.properties a ", worker_dir)
+  }
 
   # Filtro STX de la salida de GCAM (reduce mucho la memoria del volcado final)
-  configure_xmldb_filter(exe_dir, use_filter = use_xmldb_filter)
+  configure_xmldb_filter(worker_dir, use_filter = use_xmldb_filter)
 
-  path <- file.path(exe_dir, "batch_queries")
-
-  if (!dir.exists(file.path(exe_dir, "/batch_queries"))) {
-    dir.create(path, recursive = TRUE)
-  } else{
-    unlink(
-      list.files(path, full.names = TRUE),
-      recursive = TRUE,
-      force = TRUE)
-  }
-
-  file.copy(from = paste0(thisScript_path,'/files/xmldb_batch.xml'), to = (paste0(exe_dir, "/batch_queries/xmldb_batch.xml")))
-  for (query_title in queries_of_interest){
-    output_file <- paste0(gsub("\\s+", "_", query_title),
-                          ".xml")
-    file.copy(from =  paste0(thisScript_path,'/files/',output_file), to = (paste0(exe_dir, "/batch_queries/", output_file)))
-  }
-
+  message('Directorio de GCAM del worker preparado: ', worker_dir)
 }
