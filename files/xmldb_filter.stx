@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  xmldb_filter.stx
+
+  Filtro STX (Joost) para la salida de GCAM hacia la XML database.
+  Se activa desde XMLDBDriver.properties:
+      <entry key="filter-script">xmldb_filter.stx</entry>
+  (ruta relativa a gcam/exe, desde donde se ejecuta GCAM; GCAM_preparation()
+  debe copiar este fichero allí junto a XMLDBDriver.properties).
+
+  GCAM pasa el escenario entero por este filtro ANTES de escribirlo en la
+  base de datos (FilterOutput.java), así que lo descartado nunca llega a la
+  memoria de Java. Solo se conserva lo que necesita la query
+  "outputs by tech":
+
+      scenario / world / region / sector / subsector (anidados incluidos)
+               / technology / output / physical-output
+
+  más la cabecera del escenario (model-version, modeltime). Todo lo demás
+  (inputs, costes, share-weights, emisiones, recursos, demanda final,
+  mercados, uso del suelo, clima, currency-output, ...) se descarta.
+
+  Cómo funciona: cada nivel procesa a sus hijos con el grupo de plantillas
+  del nivel siguiente (stx:process-children group="..."), y en cada grupo
+  cualquier elemento que no sea el esperado se descarta con todo su
+  contenido. Así solo se copian cadenas de hijos directos, igual que las
+  recorre la query, y nada puede colarse fuera de ellas.
+
+  Si se añaden queries que lean otros nodos (inputs, emisiones, ...), hay que
+  añadir aquí las plantillas correspondientes.
+-->
+<stx:transform xmlns:stx="http://stx.sourceforge.net/2002/ns"
+               version="1.0"
+               pass-through="none">
+
+  <stx:template match="/scenario">
+    <stx:copy attributes="@*"><stx:process-children group="scenario"/></stx:copy>
+  </stx:template>
+
+  <!-- Hijos de scenario: metadatos y world -->
+  <stx:group name="scenario">
+    <stx:template match="model-version">
+      <stx:copy attributes="@*"><stx:process-children group="text"/></stx:copy>
+    </stx:template>
+    <stx:template match="modeltime">
+      <stx:copy attributes="@*"><stx:process-children group="modeltime"/></stx:copy>
+    </stx:template>
+    <stx:template match="world">
+      <stx:copy attributes="@*"><stx:process-children group="world"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <stx:group name="modeltime">
+    <stx:template match="model-year">
+      <stx:copy attributes="@*"><stx:process-children group="text"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Regiones (todas: el filtro no depende de la lista de regiones del R) -->
+  <stx:group name="world">
+    <stx:template match="*[@type='region']">
+      <stx:copy attributes="@*"><stx:process-children group="region"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Sectores de cada región -->
+  <stx:group name="region">
+    <stx:template match="*[@type='sector']">
+      <stx:copy attributes="@*"><stx:process-children group="sector"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Subsectores de cada sector -->
+  <stx:group name="sector">
+    <stx:template match="*[@type='subsector']">
+      <stx:copy attributes="@*"><stx:process-children group="subsector"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Dentro de un subsector: subsectores anidados y tecnologías (todas las vintages) -->
+  <stx:group name="subsector">
+    <stx:template match="*[@type='subsector']">
+      <stx:copy attributes="@*"><stx:process-children group="subsector"/></stx:copy>
+    </stx:template>
+    <stx:template match="*[@type='technology']">
+      <stx:copy attributes="@*"><stx:process-children group="technology"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Outputs de cada tecnología -->
+  <stx:group name="technology">
+    <stx:template match="*[@type='output']">
+      <stx:copy attributes="@*"><stx:process-children group="output"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- El dato: physical-output (todas las vintages) -->
+  <stx:group name="output">
+    <stx:template match="physical-output">
+      <stx:copy attributes="@*"><stx:process-children group="text"/></stx:copy>
+    </stx:template>
+    <!-- Cualquier otro elemento: se descarta con todo su contenido -->
+    <stx:template match="*" priority="-10"/>
+  </stx:group>
+
+  <!-- Texto: solo se copia dentro de los nodos que lo piden -->
+  <stx:group name="text">
+    <stx:template match="text()">
+      <stx:value-of select="."/>
+    </stx:template>
+  </stx:group>
+
+</stx:transform>
