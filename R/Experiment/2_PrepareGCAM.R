@@ -320,6 +320,14 @@ GCAM_preparation <- function(gcam_path, queries_of_interest, regions_per_query,
     stop("No se pudo copiar XMLDBDriver.properties a ", worker_dir)
   }
 
+  # GCAM arranca Java con una ruta fija, -Djava.class.path=XMLDBDriver.jar:...,
+  # relativa al directorio de ejecución (xml_db_outputter.cpp) e ignora la
+  # variable CLASSPATH: el jar tiene que estar en worker_dir. Las otras rutas
+  # de esa opción empiezan por "../" y valen igual desde worker_dir.
+  if (!file.copy(from = file.path(exe_dir, "XMLDBDriver.jar"), to = worker_dir, overwrite = TRUE)) {
+    stop("No se pudo copiar ", file.path(exe_dir, "XMLDBDriver.jar"), " a ", worker_dir)
+  }
+
   # Filtro STX de la salida de GCAM (reduce mucho la memoria del volcado final)
   configure_xmldb_filter(worker_dir, use_filter = use_xmldb_filter)
 
