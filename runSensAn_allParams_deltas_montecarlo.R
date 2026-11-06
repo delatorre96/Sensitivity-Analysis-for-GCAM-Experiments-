@@ -120,7 +120,7 @@ distribution_parameters = list('logit' = list('minVal' = -0.4, 'maxVal' = 0.4),
                                'income_elasticity'= list('minVal' = -0.4, 'maxVal' = 0.4))
 interested_query_columns = list('outputs by tech' = c('region', 'sector', 'subsector', 'output', 'technology', '2021','run_id'))
 uncertainty_introduction_function = 'introduce_relative_uncertainty_by_type'
-df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams_relevance.csv"
+df_params_path = "../Hindcasting/4_SensitivityAnalysis/create_dfParams/df_allParams.csv"
 paramCol = "param"
 
 
