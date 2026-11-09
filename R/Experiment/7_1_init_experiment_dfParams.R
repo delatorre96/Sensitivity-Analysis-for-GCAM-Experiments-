@@ -55,8 +55,12 @@ init_experiment <- function(gcam_path = 'C:/GCAM/Nacho/gcam_europe', alreadyPrep
                                              "fillout",
                                              # Agrupación de satiation_level
                                              "region",
+                                             'supplysector',
+                                             'subsector',
+                                             'gcam_consumer',
                                              "input_type",
-                                             "input_name") %>%
+                                             "input_name",
+                                             'group', 'demand_sector') %>%
     mutate(param_default = param)
 
   if (is.null(experiment_id_to_add)){
